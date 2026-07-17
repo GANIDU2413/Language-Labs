@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ------------------------------------------------------------ helpers
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function userDoc() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return signedIn() && userDoc().role == 'admin';
+    }
+
+    function isEnrolled() {
+      return signedIn() && userDoc().status == 'enrolled';
+    }
+
+    // ------------------------------------------------------------ users
+    // Students manage their own document; admin manages all.
+    // Self-writes can never touch the privileged fields (role,
+    // dashboardUnlocked, enrolledLabId) — those are admin-only.
+
+    match /users/{userId} {
+      allow create: if isSelf(userId)
+        && request.resource.data.role == 'student'
+        && request.resource.data.dashboardUnlocked == false;
+      allow read: if isSelf(userId) || isAdmin();
+      allow update: if isAdmin()
+        || (isSelf(userId)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['role', 'dashboardUnlocked', 'enrolledLabId']));
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ labs
+    // Public read (available labs page). Admin owns the documents,
+    // but students may update ONLY the seats array — that is how the
+    // booking transaction claims a desk.
+
+    match /labs/{labId} {
+      allow read: if true;
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin()
+        || (signedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+                .hasOnly(['seats']));
+    }
+
+    // ------------------------------------------------------------ bookings
+
+    match /bookings/{bookingId} {
+      allow create: if signedIn()
+        && request.resource.data.studentId == request.auth.uid
+        && request.resource.data.paymentStatus == 'pending';
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ waitingList
+    // Anyone may join; the list itself is private to the admin.
+
+    match /waitingList/{entryId} {
+      allow create: if true;
+      allow read, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ testQuestions
+
+    match /testQuestions/{docId} {
+      allow read: if signedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ testResults
+
+    match /testResults/{resultId} {
+      allow create: if signedIn()
+        && request.resource.data.studentId == request.auth.uid;
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ resources
+    // Free resources are public; week-locked ones are for enrolled
+    // students and the admin.
+
+    match /resources/{resourceId} {
+      allow read: if resource.data.isFree == true || isAdmin() || isEnrolled();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ inClassTests
+    // Only students enrolled in that specific lab may read the quiz.
+
+    match /inClassTests/{testId} {
+      allow read: if isAdmin()
+        || (isEnrolled() && userDoc().enrolledLabId == resource.data.labId);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ inClassResults
+    // Students write their own start/submit records; admin sees all.
+
+    match /inClassResults/{resultId} {
+      allow create, update: if signedIn()
+        && request.resource.data.studentId == request.auth.uid;
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ attendance
+
+    match /attendance/{recordId} {
+      allow read: if isAdmin()
+        || (signedIn() && resource.data.studentId == request.auth.uid);
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ admins
+    // Mentor profile is shown on the public homepage; bank transfer
+    // details are shown to any student booking a seat.
+
+    match /admins/{docId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ------------------------------------------------------------ otpCodes
+    // Server-only. The API routes must use the Admin SDK, which
+    // bypasses these rules — no client may ever touch OTP codes.
+
+    match /otpCodes/{codeId} {
+      allow read, write: if false;
+    }
+  }
+}

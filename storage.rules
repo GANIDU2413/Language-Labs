@@ -1,0 +1,57 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn()
+        && firestore.get(/databases/(default)/documents/users/$(request.auth.uid))
+            .data.role == 'admin';
+    }
+
+    // ------------------------------------------------ speaking recordings
+    // Students upload their own recording; only they and the admin can
+    // listen; the admin deletes it after marking (business rule).
+
+    match /speaking-recordings/{userId}/{fileName} {
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow read: if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow delete: if isAdmin() || (signedIn() && request.auth.uid == userId);
+      allow update: if false;
+    }
+
+    // ------------------------------------------------ learning resources
+    // Free PDFs are downloaded by anonymous visitors on the homepage, so
+    // reads are public. Which locked resources a student can *discover*
+    // is controlled by Firestore rules — the file URL is only revealed
+    // once the week unlocks.
+
+    match /resources/{allPaths=**} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------ level test media
+    // Images and audio clips for the listening section — test takers are
+    // always authenticated.
+
+    match /test-materials/{allPaths=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    // ------------------------------------------------ mentor profile photo
+    // Shown on the public homepage.
+
+    match /mentor/{fileName} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Everything else is denied by default.
+  }
+}
