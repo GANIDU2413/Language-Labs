@@ -21,7 +21,7 @@ const doorTransition = {
 function SplashPanels() {
   return (
     <motion.div
-      className="fixed inset-0 z-[100]"
+      className="fixed inset-0 z-100"
       exit={{ transition: { duration: 0.8 } }}
       aria-hidden
     >
@@ -77,7 +77,7 @@ function SplashPanels() {
             width={120}
             height={130}
             priority
-            className="h-[90px] w-auto sm:h-[120px]"
+            className="h-22.5 w-auto sm:h-30"
           />
         </motion.div>
 
