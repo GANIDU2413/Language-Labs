@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
 
 // Deterministic bubble configs (no Math.random — keeps renders stable)
@@ -64,21 +65,37 @@ function SplashPanels() {
           />
         ))}
 
-        {/* Logo */}
+        {/* Logo image — animates in first */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0.6, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.7, ease: 'easeOut', delay: 0.2 }}
+        >
+          <Image
+            src="/images/Logo1_no_bg.png"
+            alt="Language Labs Logo"
+            width={120}
+            height={130}
+            priority
+            className="h-[90px] w-auto sm:h-[120px]"
+          />
+        </motion.div>
+
+        {/* Title */}
         <motion.p
           initial={{ opacity: 0, scale: 0.6 }}
           animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.6, ease: 'easeOut' }}
-          className="text-4xl font-bold text-lab-white sm:text-5xl"
+          transition={{ duration: 0.6, ease: 'easeOut', delay: 0.6 }}
+          className="mt-4 text-4xl font-bold uppercase text-lab-white sm:text-5xl"
         >
-          🧪 Language <span className="text-electric-blue">Labs</span>
+          Language <span className="text-electric-blue">Labs</span>
         </motion.p>
 
         {/* Tagline */}
         <motion.p
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.7 }}
+          transition={{ duration: 0.6, delay: 0.9 }}
           className="mt-4 px-6 text-center text-base text-blue-light sm:text-lg"
         >
           It&apos;s Your Safe Space to Try, Test &amp; Talk.

@@ -7,6 +7,7 @@ import { signOut } from 'firebase/auth'
 import { collection, onSnapshot, query, where } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { clearAuthCookie, useAuth } from '@/hooks/useAuth'
+import Logo from '@/components/layout/Logo'
 
 const navItems = [
   { href: '/admin', icon: '🏠', label: 'Dashboard' },
@@ -58,6 +59,11 @@ export default function AdminSidebar() {
     <>
       {/* Desktop sidebar */}
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 flex-col bg-deep-blue md:flex">
+        {/* Logo */}
+        <div className="border-b border-white/10 px-5 py-4">
+          <Logo href="/admin" />
+        </div>
+
         {/* Admin profile */}
         <div className="flex items-center gap-3 border-b border-white/10 px-5 py-5">
           <span className="flex h-11 w-11 items-center justify-center rounded-full bg-electric-blue text-xl">

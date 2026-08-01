@@ -4,14 +4,16 @@ import Link from 'next/link'
 interface LogoProps {
   /** 'dark' = white text for dark backgrounds; 'light' = deep-blue text for white cards */
   theme?: 'dark' | 'light'
+  /** Where the logo links to — '/' for public pages, /admin or /dashboard inside those areas */
+  href?: string
   onClick?: () => void
 }
 
-/** Language Labs logo lockup — image mark + wordmark, linked to the homepage */
-export default function Logo({ theme = 'dark', onClick }: LogoProps) {
+/** Language Labs logo lockup — image mark + wordmark */
+export default function Logo({ theme = 'dark', href = '/', onClick }: LogoProps) {
   return (
     <Link
-      href="/"
+      href={href}
       onClick={onClick}
       className="inline-flex items-center gap-2.5"
     >
@@ -24,7 +26,7 @@ export default function Logo({ theme = 'dark', onClick }: LogoProps) {
         className="h-8.5 w-auto md:h-10"
       />
       <span
-        className={`text-lg font-bold md:text-xl ${
+        className={`text-lg font-bold uppercase md:text-xl ${
           theme === 'dark' ? 'text-lab-white' : 'text-deep-blue'
         }`}
       >

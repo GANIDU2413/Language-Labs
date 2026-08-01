@@ -7,6 +7,7 @@ import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { getWhatsAppLink } from '@/lib/utils'
 import { clearAuthCookie, useAuth } from '@/hooks/useAuth'
+import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
@@ -105,9 +106,7 @@ export default function StudentLayout({
       {/* Top navbar */}
       <header className="sticky top-0 z-40 bg-deep-blue">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <Link href="/dashboard" className="text-lg font-bold text-lab-white">
-            🧪 Language <span className="text-electric-blue">Labs</span>
-          </Link>
+          <Logo href="/dashboard" />
           <div className="flex items-center gap-4">
             <span className="hidden text-sm text-gray-300 sm:inline">
               {user?.fullName}
