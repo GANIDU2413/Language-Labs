@@ -11,6 +11,7 @@ import { auth, db } from '@/lib/firebase'
 import { friendlyFirebaseError } from '@/lib/utils'
 import { setAuthCookie } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
+import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
@@ -68,10 +69,13 @@ export default function AdminLoginPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-deep-blue px-4">
       <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-center text-2xl font-bold text-deep-blue">
-          🧪 Language Labs <span className="text-electric-blue">Admin</span>
+        <div className="mb-2 flex justify-center">
+          <Logo theme="light" />
+        </div>
+        <h1 className="text-center text-sm font-semibold uppercase tracking-wide text-electric-blue">
+          Admin Panel
         </h1>
-        <p className="mb-6 text-center text-sm text-gray-500">
+        <p className="mb-6 mt-1 text-center text-sm text-gray-500">
           Authorised personnel only
         </p>
 

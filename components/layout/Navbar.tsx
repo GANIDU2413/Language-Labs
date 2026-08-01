@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
+import Logo from '@/components/layout/Logo'
 
 const navLinks = [
   { href: '/learning-materials', label: 'Learning Materials' },
@@ -24,13 +25,7 @@ export default function Navbar() {
     <header className="sticky top-0 z-50 bg-deep-blue/90 backdrop-blur">
       <nav className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
         {/* Logo */}
-        <Link
-          href="/"
-          className="text-xl font-bold text-lab-white"
-          onClick={() => setMenuOpen(false)}
-        >
-          🧪 Language <span className="text-electric-blue">Labs</span>
-        </Link>
+        <Logo onClick={() => setMenuOpen(false)} />
 
         {/* Desktop links */}
         <div className="hidden items-center gap-8 md:flex">

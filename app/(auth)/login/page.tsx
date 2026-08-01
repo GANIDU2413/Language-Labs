@@ -12,6 +12,7 @@ import { auth, db } from '@/lib/firebase'
 import { setAuthCookie } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { friendlyFirebaseError, getWhatsAppLink } from '@/lib/utils'
+import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
@@ -82,10 +83,8 @@ export default function LoginPage() {
 
   return (
     <Card className="w-full max-w-md">
-      <div className="mb-6 text-center">
-        <Link href="/" className="text-2xl font-bold text-deep-blue">
-          🧪 Language <span className="text-electric-blue">Labs</span>
-        </Link>
+      <div className="mb-6 flex justify-center">
+        <Logo theme="light" />
       </div>
 
       <h1 className="mb-6 text-center text-2xl font-bold text-deep-blue">

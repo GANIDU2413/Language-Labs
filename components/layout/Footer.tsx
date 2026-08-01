@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import Logo from '@/components/layout/Logo'
 
 const quickLinks = [
   { href: '/learning-materials', label: 'Learning Materials' },
@@ -12,9 +13,7 @@ export default function Footer() {
     <footer className="bg-deep-blue text-lab-white">
       <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-2">
         <div>
-          <p className="text-xl font-bold">
-            🧪 Language <span className="text-electric-blue">Labs</span>
-          </p>
+          <Logo />
           <p className="mt-2 text-sm text-gray-400">
             Learn English the scientific way — level tests, lab batches and
             guided practice.

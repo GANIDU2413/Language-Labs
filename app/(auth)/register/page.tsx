@@ -11,6 +11,7 @@ import { doc, setDoc, Timestamp } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import { friendlyFirebaseError } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
+import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
@@ -87,10 +88,8 @@ export default function RegisterPage() {
   return (
     <Card className="w-full max-w-md">
       {/* Logo */}
-      <div className="mb-6 text-center">
-        <Link href="/" className="text-2xl font-bold text-deep-blue">
-          🧪 Language <span className="text-electric-blue">Labs</span>
-        </Link>
+      <div className="mb-6 flex justify-center">
+        <Logo theme="light" />
       </div>
 
       <h1 className="text-center text-2xl font-bold text-deep-blue">
