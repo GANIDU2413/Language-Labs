@@ -6,12 +6,253 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { getCachedMediaUrl } from '@/lib/mediaPreloader'
 import type { ListeningQuestion, TestAnswer } from '@/types'
 
 interface ListeningSectionProps {
   questions: ListeningQuestion[]
   /** Called with all collected answers when the section is finished */
   onComplete: (answers: TestAnswer[]) => void
+}
+
+interface QuestionCardProps {
+  question: ListeningQuestion
+  selected: number | null
+  onSelect: (index: number) => void
+}
+
+function QuestionCard({ question, selected, onSelect }: QuestionCardProps) {
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+  const [audioReady, setAudioReady] = useState(false)
+  const [playing, setPlaying] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [audioError, setAudioError] = useState(false)
+
+  const [imageLoaded, setImageLoaded] = useState(false)
+  const [imageError, setImageError] = useState(false)
+  const [audioAttempt, setAudioAttempt] = useState(0)
+  const [imageAttempt, setImageAttempt] = useState(0)
+
+  const audioSrc = getCachedMediaUrl(question.audioUrl)
+  const imageSrc = getCachedMediaUrl(question.imageUrl)
+  const isBlobImage = imageSrc.startsWith('blob:')
+
+  // Audio setup and event management
+  useEffect(() => {
+    let unmounted = false
+    const audio = new Audio(audioSrc)
+    audioRef.current = audio
+
+    const onReady = () => {
+      if (!unmounted) {
+        setAudioReady(true)
+        setAudioError(false)
+      }
+    }
+
+    const onTime = () => {
+      if (!unmounted && audio.duration) {
+        setProgress(audio.currentTime / audio.duration)
+      }
+    }
+
+    const onEnded = () => {
+      if (!unmounted) {
+        setPlaying(false)
+        audio.currentTime = 0
+      }
+    }
+
+    const onError = () => {
+      if (!unmounted) {
+        setAudioError(true)
+        setAudioReady(false)
+        setPlaying(false)
+      }
+    }
+
+    audio.addEventListener('canplaythrough', onReady)
+    audio.addEventListener('canplay', onReady)
+    audio.addEventListener('timeupdate', onTime)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('error', onError)
+
+    // Check if media is already sufficiently buffered from cache
+    if (audio.readyState >= 3) {
+      onReady()
+    }
+
+    return () => {
+      unmounted = true
+      audio.pause()
+      audio.removeEventListener('canplaythrough', onReady)
+      audio.removeEventListener('canplay', onReady)
+      audio.removeEventListener('timeupdate', onTime)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('error', onError)
+      audioRef.current = null
+    }
+  }, [audioSrc, audioAttempt])
+
+  function togglePlay() {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) {
+      audio.pause()
+      setPlaying(false)
+    } else {
+      audio
+        .play()
+        .then(() => setPlaying(true))
+        .catch(() => {
+          setPlaying(false)
+          setAudioError(true)
+        })
+    }
+  }
+
+  function retryAudio() {
+    setAudioError(false)
+    setAudioReady(false)
+    setPlaying(false)
+    setProgress(0)
+    setAudioAttempt((prev) => prev + 1)
+  }
+
+  function retryImage() {
+    setImageError(false)
+    setImageLoaded(false)
+    setImageAttempt((prev) => prev + 1)
+  }
+
+  return (
+    <Card className="mt-6">
+      {/* Image display */}
+      <div className="relative aspect-video overflow-hidden rounded-lab bg-blue-light">
+        {!imageLoaded && !imageError && (
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+            <LoadingSpinner size="md" />
+            <span className="text-xs text-gray-500">Loading picture…</span>
+          </span>
+        )}
+
+        {imageError ? (
+          <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+            <span className="text-2xl">🖼️</span>
+            <p className="mt-1 text-sm font-medium text-seat-reserved">
+              Image failed to load
+            </p>
+            <button
+              type="button"
+              onClick={retryImage}
+              className="mt-2 text-xs font-semibold text-electric-blue hover:underline"
+            >
+              🔄 Retry loading image
+            </button>
+          </div>
+        ) : (
+          <Image
+            key={`${imageSrc}-${imageAttempt}`}
+            src={imageSrc}
+            alt={question.question}
+            fill
+            unoptimized={isBlobImage}
+            sizes="(max-width: 672px) 100vw, 672px"
+            className={`object-cover transition-opacity duration-300 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageError(true)}
+          />
+        )}
+      </div>
+
+      {/* Audio player */}
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={togglePlay}
+            disabled={!audioReady || audioError}
+            aria-label={playing ? 'Pause audio' : 'Play audio'}
+            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-electric-blue text-lg text-lab-white transition-colors hover:bg-electric-blue/90 disabled:opacity-50"
+          >
+            {audioError ? (
+              '⚠️'
+            ) : !audioReady ? (
+              <LoadingSpinner size="sm" />
+            ) : playing ? (
+              '❚❚'
+            ) : (
+              <span className="pl-0.5">▶</span>
+            )}
+          </button>
+
+          <div className="h-2 flex-1 overflow-hidden rounded-full bg-blue-light">
+            <div
+              className="h-full rounded-full bg-electric-blue transition-[width] duration-200"
+              style={{ width: `${progress * 100}%` }}
+            />
+          </div>
+        </div>
+
+        {audioError ? (
+          <div className="flex items-center justify-between rounded-lab bg-red-50 px-3 py-1.5 text-xs text-seat-reserved">
+            <span>Audio playback encountered an issue.</span>
+            <button
+              type="button"
+              onClick={retryAudio}
+              className="font-semibold underline hover:no-underline"
+            >
+              🔄 Retry Audio
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400">
+            🔁 Listen as many times as you need
+          </p>
+        )}
+      </div>
+
+      {/* Question + options */}
+      <h2 className="mt-6 font-semibold text-deep-blue">{question.question}</h2>
+      <div className="mt-4 flex flex-col gap-3">
+        {question.options.map((option, index) => {
+          const isSelected = selected === index
+          return (
+            <button
+              key={index}
+              type="button"
+              onClick={() => onSelect(index)}
+              className={`flex w-full items-center gap-3 rounded-lab border-2 bg-lab-white p-4 text-left transition-colors ${
+                isSelected
+                  ? 'border-electric-blue bg-blue-light'
+                  : 'border-gray-200 hover:border-electric-blue/50'
+              }`}
+            >
+              <span
+                aria-hidden
+                className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+                  isSelected ? 'border-electric-blue' : 'border-gray-300'
+                }`}
+              >
+                {isSelected && (
+                  <span className="h-2.5 w-2.5 rounded-full bg-electric-blue" />
+                )}
+              </span>
+              <span
+                className={
+                  isSelected ? 'font-medium text-deep-blue' : 'text-gray-600'
+                }
+              >
+                {option}
+              </span>
+            </button>
+          )
+        })}
+      </div>
+    </Card>
+  )
 }
 
 export default function ListeningSection({
@@ -22,64 +263,13 @@ export default function ListeningSection({
   const [selected, setSelected] = useState<number | null>(null)
   const [answers, setAnswers] = useState<TestAnswer[]>([])
 
-  // Audio player state
-  const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [audioReady, setAudioReady] = useState(false)
-  const [playing, setPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
-  const [imageLoaded, setImageLoaded] = useState(false)
+  if (questions.length === 0) return null
 
   const question = questions[current]
   const isLast = current === questions.length - 1
 
-  // (Re)create the audio element whenever the question changes
-  useEffect(() => {
-    if (!question) return
-    setAudioReady(false)
-    setPlaying(false)
-    setProgress(0)
-    setImageLoaded(false)
-
-    const audio = new Audio(question.audioUrl)
-    audioRef.current = audio
-
-    const onReady = () => setAudioReady(true)
-    const onTime = () =>
-      setProgress(audio.duration ? audio.currentTime / audio.duration : 0)
-    const onEnded = () => {
-      setPlaying(false)
-      audio.currentTime = 0 // ready to replay from the start
-    }
-
-    audio.addEventListener('canplay', onReady)
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('ended', onEnded)
-
-    return () => {
-      audio.pause()
-      audio.removeEventListener('canplay', onReady)
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('ended', onEnded)
-      audioRef.current = null
-    }
-  }, [question])
-
-  if (questions.length === 0) return null
-
-  function togglePlay() {
-    const audio = audioRef.current
-    if (!audio) return
-    if (playing) {
-      audio.pause()
-      setPlaying(false)
-    } else {
-      audio.play()
-      setPlaying(true)
-    }
-  }
-
   function next() {
-    if (selected === null) return
+    if (selected === null || !question) return
     const updated: TestAnswer[] = [
       ...answers,
       { questionId: question.id, selectedAnswer: selected },
@@ -109,98 +299,17 @@ export default function ListeningSection({
 
       <AnimatePresence mode="wait">
         <motion.div
-          key={current}
+          key={question.id || current}
           initial={{ opacity: 0, x: 40 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: -40 }}
           transition={{ duration: 0.3 }}
         >
-          <Card className="mt-6">
-            {/* Image */}
-            <div className="relative aspect-video overflow-hidden rounded-lab bg-blue-light">
-              {!imageLoaded && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <LoadingSpinner size="md" />
-                </span>
-              )}
-              <Image
-                src={question.imageUrl}
-                alt={question.question}
-                fill
-                sizes="(max-width: 672px) 100vw, 672px"
-                className={`object-cover transition-opacity ${
-                  imageLoaded ? 'opacity-100' : 'opacity-0'
-                }`}
-                onLoad={() => setImageLoaded(true)}
-              />
-            </div>
-
-            {/* Audio player */}
-            <div className="mt-4 flex items-center gap-4">
-              <button
-                onClick={togglePlay}
-                disabled={!audioReady}
-                aria-label={playing ? 'Pause audio' : 'Play audio'}
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-electric-blue text-lg text-lab-white transition-colors hover:bg-electric-blue/90 disabled:opacity-50"
-              >
-                {!audioReady ? (
-                  <LoadingSpinner size="sm" />
-                ) : playing ? (
-                  '❚❚'
-                ) : (
-                  <span className="pl-0.5">▶</span>
-                )}
-              </button>
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-blue-light">
-                <div
-                  className="h-full rounded-full bg-electric-blue transition-[width] duration-200"
-                  style={{ width: `${progress * 100}%` }}
-                />
-              </div>
-            </div>
-            <p className="mt-2 text-xs text-gray-400">
-              🔁 Listen as many times as you need
-            </p>
-          </Card>
-
-          {/* Question + options */}
-          <h2 className="mt-6 font-semibold text-deep-blue">
-            {question.question}
-          </h2>
-          <div className="mt-4 flex flex-col gap-3">
-            {question.options.map((option, index) => {
-              const isSelected = selected === index
-              return (
-                <button
-                  key={index}
-                  onClick={() => setSelected(index)}
-                  className={`flex w-full items-center gap-3 rounded-lab border-2 bg-lab-white p-4 text-left transition-colors ${
-                    isSelected
-                      ? 'border-electric-blue bg-blue-light'
-                      : 'border-gray-200 hover:border-electric-blue/50'
-                  }`}
-                >
-                  <span
-                    aria-hidden
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
-                      isSelected ? 'border-electric-blue' : 'border-gray-300'
-                    }`}
-                  >
-                    {isSelected && (
-                      <span className="h-2.5 w-2.5 rounded-full bg-electric-blue" />
-                    )}
-                  </span>
-                  <span
-                    className={
-                      isSelected ? 'font-medium text-deep-blue' : 'text-gray-600'
-                    }
-                  >
-                    {option}
-                  </span>
-                </button>
-              )
-            })}
-          </div>
+          <QuestionCard
+            question={question}
+            selected={selected}
+            onSelect={setSelected}
+          />
         </motion.div>
       </AnimatePresence>
 

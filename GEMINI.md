@@ -1,44 +1,48 @@
-# Language Labs — Claude Code Project Guide
+# Language Labs — Antigravity Project Guide
 
 ## What This Project Is
 An English learning platform called Language Labs built with 
-Next.js 14, Firebase, and Tailwind CSS. It has a science lab 
+Next.js 16 (App Router), React 19, Firebase, and Tailwind CSS v4. It has a science lab 
 theme with Deep Blue, Electric Blue, and White colours.
 
 ## Tech Stack
-- Framework: Next.js 14 (App Router)
-- Styling: Tailwind CSS + Framer Motion + Lottie React
+- Framework: Next.js 16 (App Router)
+- UI Library: React 19
+- Styling: Tailwind CSS v4 + Framer Motion + Lottie React
 - Database: Firebase Firestore
 - Auth: Firebase Auth (Email/Password)
 - Storage: Firebase Storage
 - Emails: Resend
 - PDF: jsPDF + html2canvas
 - Forms: React Hook Form + Zod
+- Routing / Middleware: Next.js proxy convention (`proxy.ts`)
 - Hosting: Vercel
 
 ## Project Structure
 app/                  → All pages (Next.js App Router)
-  (public)/           → Public pages (no login needed)
-  (student)/          → Student protected pages
-  (admin)/            → Admin protected pages
-  api/                → API routes (OTP, email, PDF)
+  (public)/           → Public pages (Home, About, Contact, Available Labs, Learning Materials, Waiting List)
+  (student)/          → Student protected pages (Dashboard, Profile, Resources, Tests, Certificate)
+  (admin)/            → Admin protected pages (Labs, Attendance, Resources, Test Materials, Reviews, Waiting List, Profile)
+  (auth)/             → Auth pages (Login, Register, OTP verification)
+  api/                → API routes (send-otp, verify-otp, send-email, notify-admin, cleanup-pending-students)
 components/           → Reusable UI components
-  ui/                 → Buttons, cards, inputs
-  layout/             → Navbar, footer, sidebar
+  ui/                 → Buttons, cards, inputs, modal, loading spinner
+  layout/             → Navbar, footer, hero, course overview, mentor preview
   forms/              → Form components
-  lab/                → Lab/booking specific components
-  test/               → Level test components
-  admin/              → Admin panel components
+  lab/                → Lab/booking specific components (seat grid, booking cards)
+  test/               → Level test components (Reading, Vocabulary, Listening, Speaking)
+  admin/              → Admin panel components (sidebar, question forms)
 lib/
-  firebase.ts         → Firebase initialisation
+  firebase.ts         → Firebase initialisation (Auth, Firestore, Storage)
   firestore.ts        → Firestore helper functions
   storage.ts          → Firebase Storage helpers
   resend.ts           → Email sending functions
   pdf.ts              → PDF generation helpers
   utils.ts            → General utility functions
-hooks/                → Custom React hooks
+hooks/                → Custom React hooks (useAuth, useToast, useCountdown, etc.)
 types/
   index.ts            → All TypeScript interfaces
+proxy.ts              → Route protection & role-based proxying (formerly middleware)
 
 ## Colour Theme
 - Deep Blue: #0A1628
@@ -49,10 +53,11 @@ types/
 ## User Roles
 1. Public visitor — no login, can view homepage and free resources
 2. Student — registered, can take level test, book a lab, access dashboard
-3. Admin — single admin account, manages everything
+3. Admin — single admin account (role: 'admin'), manages everything
 
 ## Firebase Collections
-- users → students data
+- users → students data & admin account (`role: 'student' | 'admin'`)
+- admins → admin documents (`admins/profile` for mentor bio/photo, `admins/bank` for bank details)
 - labs → lab batches (max 6 seats each)
 - bookings → seat bookings + payment status
 - waitingList → max 12 students when no labs available
@@ -100,6 +105,7 @@ NEXT_PUBLIC_WHATSAPP_NUMBER
 
 ## Coding Rules — Always Follow These
 - Always use TypeScript, never plain JavaScript
+- Next.js 16 conventions: breaking changes exist compared to older versions — consult `node_modules/next/dist/docs/` when needed
 - Always use Tailwind CSS for styling, no inline styles
 - Always use React Hook Form + Zod for any form
 - Always use the types defined in types/index.ts
@@ -112,16 +118,17 @@ NEXT_PUBLIC_WHATSAPP_NUMBER
 - Mobile first — always check mobile layout before desktop
 
 ## Admin Panel Nav Items
-1. Student details
-2. New Lab creation
-3. New Labs (not started)
-4. Ongoing Labs (in progress)
-5. Attendance
-6. Upload resources
-7. Tests materials (level test content)
-8. Review speaking tests
-9. In-class test
-10. Waiting list
+1. Student details (`/admin/students`)
+2. New Lab creation (`/admin/labs/new`)
+3. New Labs / not started (`/admin/labs/not-started`)
+4. Ongoing Labs / in progress (`/admin/labs/ongoing`)
+5. Attendance (`/admin/attendance`)
+6. Upload resources (`/admin/resources`)
+7. Test materials / level test content (`/admin/test-materials`)
+8. Review speaking tests (`/admin/speaking-review`)
+9. In-class test (`/admin/inclass-test`)
+10. Waiting list (`/admin/waiting-list`)
+11. Mentor profile (`/admin/profile`)
 
 ## Student Dashboard Nav Items
 1. Progress tracker (Day 1-16)
@@ -145,6 +152,6 @@ NEXT_PUBLIC_WHATSAPP_NUMBER
 - Only marks saved, no answer data kept
 
 ## Current Status
-Project is freshly set up. Starting from scratch.
-Build order: Foundation → Auth → Landing Page → Level Test 
-→ Lab Booking → Admin Panel → Student Dashboard → Polish
+- Project core architecture, routes, and security rules are implemented.
+- Public pages, Auth flow with OTP verification, Student dashboard, and Admin portal are functional.
+- Continue iterating on polish, testing, responsive design, and production readiness.

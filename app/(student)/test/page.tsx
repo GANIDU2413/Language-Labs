@@ -6,6 +6,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { Timestamp } from 'firebase/firestore'
 import { addDocument, getCollection } from '@/lib/firestore'
 import { useAuth } from '@/hooks/useAuth'
+import { clearMediaCache, useMediaPreloader } from '@/hooks/useMediaPreloader'
 import TestRules from '@/components/test/TestRules'
 import ReadingSection from '@/components/test/ReadingSection'
 import VocabularySection from '@/components/test/VocabularySection'
@@ -84,6 +85,7 @@ export default function LevelTestPage() {
   const [stage, setStage] = useState<Stage>('rules')
   const [micGranted, setMicGranted] = useState(false)
   const [questions, setQuestions] = useState<TestQuestions | null>(null)
+  const [questionsLoading, setQuestionsLoading] = useState(true)
   const [answers, setAnswers] = useState<{
     reading: TestAnswer[]
     vocabulary: TestAnswer[]
@@ -91,6 +93,17 @@ export default function LevelTestPage() {
   }>({ reading: [], vocabulary: [], listening: [] })
   const [submitError, setSubmitError] = useState(false)
   const [speakingUrl, setSpeakingUrl] = useState<string | null>(null)
+
+  // Media preloading hook for listening audio and image assets
+  const {
+    status: mediaStatus,
+    progress: mediaProgress,
+    totalCount: mediaTotalCount,
+    loadedCount: mediaLoadedCount,
+    isReady: mediaReady,
+    error: mediaError,
+    retry: retryMediaPreload,
+  } = useMediaPreloader(questions?.listening)
 
   // Must be logged in to take the test
   useEffect(() => {
@@ -102,6 +115,14 @@ export default function LevelTestPage() {
     getCollection<TestQuestions>('testQuestions')
       .then((docs) => setQuestions(docs[0] ?? null))
       .catch(() => setQuestions(null))
+      .finally(() => setQuestionsLoading(false))
+  }, [])
+
+  // Clean up media cache when leaving the test page
+  useEffect(() => {
+    return () => {
+      clearMediaCache()
+    }
   }, [])
 
   async function finishTest(speakingFileUrl: string | null) {
@@ -145,6 +166,7 @@ export default function LevelTestPage() {
         // Admin email failing should never block the student
       }
 
+      clearMediaCache()
       router.push('/test/results')
     } catch {
       setSubmitError(true)
@@ -216,8 +238,27 @@ export default function LevelTestPage() {
         >
           {stage === 'rules' && (
             <TestRules
-              onStart={() => setStage('reading')}
+              onStart={() => {
+                // Double safety guard: media must be 100% ready before entering test
+                if (
+                  !mediaReady ||
+                  mediaStatus === 'loading' ||
+                  mediaStatus === 'error' ||
+                  questionsLoading
+                ) {
+                  return
+                }
+                setStage('reading')
+              }}
               onMicGranted={setMicGranted}
+              mediaStatus={mediaStatus}
+              mediaProgress={mediaProgress}
+              mediaTotalCount={mediaTotalCount}
+              mediaLoadedCount={mediaLoadedCount}
+              mediaReady={mediaReady}
+              mediaError={mediaError}
+              onRetryMedia={retryMediaPreload}
+              questionsLoading={questionsLoading}
             />
           )}
 

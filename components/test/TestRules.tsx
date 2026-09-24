@@ -1,15 +1,32 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 interface TestRulesProps {
   /** Called when the student clicks "Start My Test" */
   onStart: () => void
   /** Called once microphone permission resolves (true = granted) */
   onMicGranted: (granted: boolean) => void
+  /** Media preloading status */
+  mediaStatus?: 'idle' | 'loading' | 'success' | 'error'
+  /** Percentage (0-100) of media loaded */
+  mediaProgress?: number
+  /** Total number of media assets to preload */
+  mediaTotalCount?: number
+  /** Number of media assets successfully loaded */
+  mediaLoadedCount?: number
+  /** Whether 100% of media assets are loaded and ready */
+  mediaReady?: boolean
+  /** Error message if media preloading failed */
+  mediaError?: string | null
+  /** Function to retry loading failed media assets */
+  onRetryMedia?: () => void
+  /** Whether question bank is currently being fetched */
+  questionsLoading?: boolean
 }
 
 type MicStatus = 'pending' | 'granted' | 'denied'
@@ -46,29 +63,91 @@ const bubbles = Array.from({ length: 10 }, (_, i) => ({
   delay: (i * 1.9) % 7,
 }))
 
-export default function TestRules({ onStart, onMicGranted }: TestRulesProps) {
+export default function TestRules({
+  onStart,
+  onMicGranted,
+  mediaStatus = 'idle',
+  mediaProgress = 0,
+  mediaTotalCount = 0,
+  mediaLoadedCount = 0,
+  mediaReady = true,
+  mediaError = null,
+  onRetryMedia,
+  questionsLoading = false,
+}: TestRulesProps) {
   const [micStatus, setMicStatus] = useState<MicStatus>('pending')
   const onMicGrantedRef = useRef(onMicGranted)
-  onMicGrantedRef.current = onMicGranted
-
-  async function requestMic() {
-    setMicStatus('pending')
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
-      // We only need the permission — release the mic until the speaking section
-      stream.getTracks().forEach((track) => track.stop())
-      setMicStatus('granted')
-      onMicGrantedRef.current(true)
-    } catch {
-      setMicStatus('denied')
-      onMicGrantedRef.current(false)
-    }
-  }
 
   useEffect(() => {
-    requestMic()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    onMicGrantedRef.current = onMicGranted
+  }, [onMicGranted])
+
+  const requestMic = useCallback(() => {
+    setMicStatus('pending')
+    navigator.mediaDevices
+      ?.getUserMedia({ audio: true })
+      .then((stream) => {
+        stream.getTracks().forEach((track) => track.stop())
+        setMicStatus('granted')
+        onMicGrantedRef.current(true)
+      })
+      .catch(() => {
+        setMicStatus('denied')
+        onMicGrantedRef.current(false)
+      })
   }, [])
+
+  useEffect(() => {
+    let active = true
+    navigator.mediaDevices
+      ?.getUserMedia({ audio: true })
+      .then((stream) => {
+        stream.getTracks().forEach((track) => track.stop())
+        if (active) {
+          setMicStatus('granted')
+          onMicGrantedRef.current(true)
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setMicStatus('denied')
+          onMicGrantedRef.current(false)
+        }
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  // Strictly prevent starting the test until:
+  // 1. Microphone check is resolved (granted or denied)
+  // 2. Questions are loaded
+  // 3. 100% of media assets are preloaded and ready for playback
+  const canStart =
+    micStatus !== 'pending' &&
+    !questionsLoading &&
+    mediaReady &&
+    mediaStatus !== 'loading' &&
+    mediaStatus !== 'error'
+
+  function handleStart() {
+    if (!canStart) return
+    onStart()
+  }
+
+  function getButtonLabel() {
+    if (questionsLoading) return 'Preparing Test Materials…'
+    if (mediaStatus === 'loading') {
+      return `Preloading Media (${mediaProgress}%)…`
+    }
+    if (mediaStatus === 'error') {
+      return 'Media Preload Incomplete — Retry Above'
+    }
+    if (micStatus === 'pending') {
+      return 'Checking Microphone…'
+    }
+    return 'Start My Test 🚀'
+  }
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-deep-blue px-4 py-10">
@@ -128,11 +207,93 @@ export default function TestRules({ onStart, onMicGranted }: TestRulesProps) {
                 rest of the test!
               </p>
               <button
-                onClick={requestMic}
+                type="button"
+                onClick={() => {
+                  setMicStatus('pending')
+                  requestMic()
+                }}
                 className="mt-2 font-semibold text-electric-blue hover:underline"
               >
                 Try allowing the mic again
               </button>
+            </div>
+          )}
+
+          {/* Media preloading state */}
+          {questionsLoading && (
+            <div className="mt-4 rounded-lab border border-blue-200 bg-blue-50/80 p-4">
+              <div className="flex items-center gap-3">
+                <LoadingSpinner size="sm" />
+                <p className="text-sm font-medium text-deep-blue">
+                  🧪 Initializing test lab and fetching question bank…
+                </p>
+              </div>
+            </div>
+          )}
+
+          {!questionsLoading && mediaStatus === 'loading' && mediaTotalCount > 0 && (
+            <div className="mt-4 rounded-lab border border-electric-blue/30 bg-blue-light/40 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2 font-semibold text-deep-blue">
+                  <LoadingSpinner size="sm" /> Preloading Listening Media…
+                </span>
+                <span className="font-bold text-electric-blue">
+                  {mediaLoadedCount} / {mediaTotalCount} ({mediaProgress}%)
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-gray-600">
+                Caching audio clips and question images in memory to prevent missing audio and loading delays during your test.
+              </p>
+              <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-blue-200/50">
+                <motion.div
+                  className="h-full rounded-full bg-electric-blue"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${mediaProgress}%` }}
+                  transition={{ duration: 0.3 }}
+                />
+              </div>
+            </div>
+          )}
+
+          {!questionsLoading && mediaStatus === 'error' && (
+            <div className="mt-4 rounded-lab border border-red-200 bg-red-50 p-4 text-sm">
+              <div className="flex items-start gap-2.5">
+                <span className="text-lg">⚠️</span>
+                <div className="flex-1">
+                  <p className="font-semibold text-red-900">
+                    Listening Media Preload Incomplete
+                  </p>
+                  <p className="mt-1 text-xs text-red-700">
+                    {mediaError ||
+                      'Some listening audio files or images could not be loaded due to a slow or unstable connection.'}
+                  </p>
+                  {onRetryMedia && (
+                    <button
+                      type="button"
+                      onClick={onRetryMedia}
+                      className="mt-3 inline-flex items-center gap-1.5 rounded-lab bg-seat-reserved px-3 py-1.5 text-xs font-semibold text-lab-white transition-colors hover:bg-seat-reserved/90"
+                    >
+                      🔄 Retry Preloading Media
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!questionsLoading && mediaReady && mediaTotalCount > 0 && (
+            <div className="mt-4 rounded-lab border border-green-200 bg-green-50 p-3.5 text-sm text-green-800">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🎧</span>
+                  <span className="font-semibold">
+                    All listening audio & images preloaded and ready for playback!
+                  </span>
+                </div>
+                <span className="rounded-full bg-green-200 px-2.5 py-0.5 text-xs font-bold text-green-900">
+                  {mediaTotalCount}/{mediaTotalCount} Ready
+                </span>
+              </div>
             </div>
           )}
 
@@ -160,11 +321,12 @@ export default function TestRules({ onStart, onMicGranted }: TestRulesProps) {
 
           <Button
             size="lg"
-            onClick={onStart}
-            disabled={micStatus === 'pending'}
+            onClick={handleStart}
+            disabled={!canStart}
+            loading={mediaStatus === 'loading' || questionsLoading}
             className="mt-8 w-full"
           >
-            Start My Test
+            {getButtonLabel()}
           </Button>
         </Card>
       </motion.div>
