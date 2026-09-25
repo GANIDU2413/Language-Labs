@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { sendAdminNotification } from '@/lib/resend'
+import { ResendDeliveryError, sendAdminNotification } from '@/lib/resend'
 
 type NotificationType = 'speaking_review' | 'payment_receipt' | 'new_registration'
 
@@ -27,13 +27,13 @@ export async function POST(request: Request) {
 
     if (typeof type !== 'string' || !(type in templates)) {
       return NextResponse.json(
-        { error: 'A valid notification type is required' },
+        { error: 'A valid notification type is required', code: 'invalid_type' },
         { status: 400 }
       )
     }
     if (typeof studentName !== 'string' || studentName.trim() === '') {
       return NextResponse.json(
-        { error: 'Student name is required' },
+        { error: 'Student name is required', code: 'missing_name' },
         { status: 400 }
       )
     }
@@ -53,14 +53,30 @@ export async function POST(request: Request) {
       }
       <p style="margin:0;">Log in to the admin panel to take action.</p>`
 
-    await sendAdminNotification(subject, bodyHtml)
+    const result = await sendAdminNotification(subject, bodyHtml)
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      id: result.id,
+      sandbox: result.sandbox ?? false,
+    })
   } catch (err) {
-    console.error('notify-admin failed:', err)
+    console.error('[API notify-admin Error]', err)
+
+    const statusCode = err instanceof ResendDeliveryError ? err.statusCode : 500
+    const errorName =
+      err instanceof ResendDeliveryError ? err.errorName : 'internal_error'
+    const message =
+      err instanceof Error ? err.message : 'Could not send the notification.'
+
     return NextResponse.json(
-      { error: 'Could not send the notification' },
-      { status: 500 }
+      {
+        error: 'Could not send the notification',
+        details: message,
+        code: errorName,
+        statusCode,
+      },
+      { status: statusCode }
     )
   }
 }

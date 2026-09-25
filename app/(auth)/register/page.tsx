@@ -71,11 +71,17 @@ export default function RegisterPage() {
         createdAt: Timestamp.now(),
       })
 
-      await fetch('/api/send-otp', {
+      const otpRes = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, firstName: data.firstName.trim() }),
       })
+
+      if (!otpRes.ok) {
+        const otpData = await otpRes.json().catch(() => null)
+        const msg = otpData?.error || 'Account created, but could not send verification email.'
+        toast.error(msg)
+      }
 
       router.push(`/verify-otp?email=${encodeURIComponent(email)}`)
     } catch (err) {

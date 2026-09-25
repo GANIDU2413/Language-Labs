@@ -125,11 +125,16 @@ function VerifyOtpForm() {
     setError('')
     setResent(false)
     try {
-      await fetch('/api/send-otp', {
+      const res = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, firstName: 'there' }),
       })
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setError(data?.error || 'Could not resend the code. Please try again.')
+        return
+      }
       setResent(true)
       setResendIn(RESEND_WAIT_SECONDS)
     } catch {
