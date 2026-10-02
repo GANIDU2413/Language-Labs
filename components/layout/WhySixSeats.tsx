@@ -1,31 +1,32 @@
 'use client'
 
+import Image from 'next/image'
 import { motion } from 'framer-motion'
 
-const benefits = [
+const seatCards = [
   {
-    icon: '🎤',
     title: 'Max Speaking Practice',
-    description:
-      'Fewer students means the mic reaches you many times every session.',
+    src: '/images/6sheat-1.png',
+    hex: '#0DBFBF',
+    rgb: '13,191,191',
   },
   {
-    icon: '👥',
     title: 'Personal Attention',
-    description:
-      'Your tutor knows your name, your goals and exactly where you struggle.',
+    src: '/images/6sheat-2.png',
+    hex: '#7C3AED',
+    rgb: '124,58,237',
   },
   {
-    icon: '💪',
     title: 'Confidence Building',
-    description:
-      'A small, friendly group is the safest place to make mistakes and grow.',
+    src: '/images/6sheat-3.png',
+    hex: '#16A34A',
+    rgb: '22,163,74',
   },
   {
-    icon: '🙋',
     title: 'Active Participation',
-    description:
-      'No hiding in the back row — everyone takes part in every experiment.',
+    src: '/images/6sheat-4.png',
+    hex: '#EAB308',
+    rgb: '234,179,8',
   },
 ]
 
@@ -56,22 +57,39 @@ export default function WhySixSeats() {
           variants={container}
           initial="hidden"
           whileInView="visible"
-          viewport={{ once: true, amount: 0.2 }}
-          className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
+          viewport={{ once: true, amount: 0.15 }}
+          className="mt-12 grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4 lg:gap-6"
         >
-          {benefits.map((benefit) => (
+          {seatCards.map((item) => (
             <motion.div
-              key={benefit.title}
+              key={item.title}
               variants={card}
-              className="flex flex-col items-center rounded-lab bg-lab-white p-6 text-center shadow-sm"
+              className="flex flex-col overflow-hidden rounded-[20px] border-2 border-[rgba(255,255,255,0.45)] shadow-[0_8px_32px_rgba(0,0,0,0.15)] transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_16px_40px_rgba(0,0,0,0.20)]"
+              style={{
+                background: `rgba(${item.rgb},0.85)`,
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+              }}
             >
-              <span className="flex h-14 w-14 items-center justify-center rounded-full bg-blue-light text-3xl">
-                {benefit.icon}
-              </span>
-              <h3 className="mt-4 font-bold text-deep-blue">{benefit.title}</h3>
-              <p className="mt-2 text-sm text-gray-500">
-                {benefit.description}
-              </p>
+              {/* Image at the top of the card */}
+              <div className="w-full p-2">
+                <div className="w-full overflow-hidden rounded-xl bg-white/95">
+                  <Image
+                    src={item.src}
+                    alt={item.title}
+                    width={544}
+                    height={460}
+                    className="h-auto w-full rounded-xl object-cover"
+                  />
+                </div>
+              </div>
+
+              {/* Topic placed directly underneath the image */}
+              <div className="flex flex-1 items-center justify-center px-3 py-3 text-center sm:px-4 sm:py-4">
+                <h3 className="font-bold text-white text-sm sm:text-base lg:text-lg leading-snug drop-shadow-xs">
+                  {item.title}
+                </h3>
+              </div>
             </motion.div>
           ))}
         </motion.div>

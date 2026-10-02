@@ -2,12 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { getCollection, queryCollection } from '@/lib/firestore'
+import { getCollection, queryCollection, updateDocument } from '@/lib/firestore'
 import { formatDate } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import { CardGridSkeleton } from '@/components/ui/Skeleton'
+import { toast } from '@/hooks/useToast'
 import type { AttendanceRecord, Booking, Lab } from '@/types'
 
 /** Estimated session date: two sessions per week from the start date */
@@ -24,6 +25,9 @@ export default function OngoingLabsPage() {
   const [attendanceByLab, setAttendanceByLab] = useState<
     Record<string, AttendanceRecord[]>
   >({})
+  const [completeLabModal, setCompleteLabModal] = useState<Lab | null>(null)
+  const [completeBusy, setCompleteBusy] = useState(false)
+  const [completeError, setCompleteError] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -44,6 +48,30 @@ export default function OngoingLabsPage() {
       })
       .catch(() => setLabs([]))
   }, [])
+
+  async function handleCompleteLab() {
+    if (!completeLabModal) return
+    setCompleteBusy(true)
+    setCompleteError('')
+    try {
+      await updateDocument<Lab>('labs', completeLabModal.id, {
+        status: 'completed',
+        weekCompleted: 8,
+        currentWeek: 8,
+      })
+      setLabs((current) =>
+        current?.filter((l) => l.id !== completeLabModal.id) ?? null
+      )
+      setCompleteLabModal(null)
+      toast.success(
+        `${completeLabModal.name} marked as Completed! All enrolled students can now access their Certificate. 🎓`
+      )
+    } catch {
+      setCompleteError('Could not complete the lab. Please try again.')
+    } finally {
+      setCompleteBusy(false)
+    }
+  }
 
   if (!labs) {
     return (
@@ -201,10 +229,62 @@ export default function OngoingLabsPage() {
                       ⏱️ Create In-Class Test
                     </Button>
                   </Link>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => {
+                      setCompleteError('')
+                      setCompleteLabModal(lab)
+                    }}
+                    className="w-full sm:flex-1 border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                  >
+                    🎓 Complete Lab
+                  </Button>
                 </div>
               </Card>
             )
           })}
+        </div>
+      )}
+
+      {/* Complete Lab Modal */}
+      {completeLabModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-blue/60 px-4">
+          <Card className="w-full max-w-md text-left">
+            <div className="text-center">
+              <p className="text-4xl">🎓</p>
+              <h3 className="mt-2 text-xl font-bold text-deep-blue">
+                Complete {completeLabModal.name}?
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                This marks all 16 sessions as completed. All enrolled students will immediately be awarded and able to download their Certificate of Completion.
+              </p>
+            </div>
+
+            {completeError && (
+              <p className="mt-3 rounded-lab bg-red-50 px-4 py-3 text-sm text-seat-reserved">
+                {completeError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setCompleteLabModal(null)}
+                disabled={completeBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                loading={completeBusy}
+                onClick={handleCompleteLab}
+                className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+              >
+                Yes, Complete Lab 🎓
+              </Button>
+            </div>
+          </Card>
         </div>
       )}
     </div>

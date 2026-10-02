@@ -32,8 +32,8 @@ const resourceSchema = z
       z.coerce
         .number()
         .int()
-        .min(1, 'Week must be 1–8')
-        .max(8, 'Week must be 1–8')
+        .min(1, 'Week must be 1–16')
+        .max(16, 'Week must be 1–16')
         .optional()
     ),
     youtubeUrl: z.string().optional(),
@@ -45,7 +45,7 @@ const resourceSchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['unlockWeek'],
-        message: 'Choose the unlock week (1–8)',
+        message: 'Choose the unlock week (1–16)',
       })
     }
     if (data.type === 'youtube' && !getYouTubeId(data.youtubeUrl ?? '')) {
@@ -156,6 +156,9 @@ export default function UploadResourcesPage() {
         setUploadPct(null)
       }
 
+      const randomMiniIndex = Math.floor(Math.random() * 11) + 1
+      const randomThumbnailImage = `/images/mini-images/mini-c-${randomMiniIndex}.png`
+
       const docData = {
         type: data.type,
         title: data.title.trim(),
@@ -174,6 +177,12 @@ export default function UploadResourcesPage() {
             }
           : {}),
         ...(data.type === 'text' ? { content: data.content } : {}),
+        ...((data.type === 'pdf' || data.type === 'text')
+          ? {
+              thumbnailImage:
+                editing?.thumbnailImage || randomThumbnailImage,
+            }
+          : {}),
       }
 
       if (editing) {
@@ -309,6 +318,25 @@ export default function UploadResourcesPage() {
                 Lab Session — enrolled students only
               </label>
             </div>
+            {visibility === 'free' && (
+              <p className="mt-2 text-xs text-gray-500">
+                {type === 'youtube' && (
+                  <span>
+                    🎬 <strong>Inside the Lab:</strong> Free YouTube links appear exclusively under the homepage &ldquo;Inside the Lab&rdquo; section.
+                  </span>
+                )}
+                {type === 'pdf' && (
+                  <span>
+                    📄 <strong>Free Resources (1st Row):</strong> Free PDF uploads appear exclusively in the 1st row of the homepage &ldquo;Free Resources&rdquo; section.
+                  </span>
+                )}
+                {type === 'text' && (
+                  <span>
+                    📝 <strong>Free Resources (2nd Row):</strong> Free text posts appear exclusively in the 2nd row of the homepage &ldquo;Free Resources&rdquo; section.
+                  </span>
+                )}
+              </p>
+            )}
           </fieldset>
 
           {visibility === 'lab' && (
@@ -316,7 +344,7 @@ export default function UploadResourcesPage() {
               label="Unlock at Week"
               name="unlockWeek"
               type="number"
-              placeholder="1–8"
+              placeholder="1–16"
               required
               register={register('unlockWeek')}
               error={errors.unlockWeek?.message}
@@ -447,14 +475,30 @@ export default function UploadResourcesPage() {
               {resources.map((resource) => (
                 <tr key={resource.id} className="border-b border-blue-light/60">
                   <td className="px-4 py-3 font-medium text-deep-blue">
-                    {resource.title}
+                    <div className="flex items-center gap-2.5">
+                      {resource.thumbnailImage && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={resource.thumbnailImage}
+                          alt=""
+                          className="h-8 w-6 object-contain shrink-0 drop-shadow-xs"
+                        />
+                      )}
+                      <span>{resource.title}</span>
+                    </div>
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant="info">{typeBadge[resource.type]}</Badge>
                   </td>
                   <td className="px-4 py-3">
                     {resource.isFree ? (
-                      <Badge variant="success">Free</Badge>
+                      resource.type === 'youtube' ? (
+                        <Badge variant="success">Free • Inside the Lab</Badge>
+                      ) : resource.type === 'pdf' ? (
+                        <Badge variant="success">Free • Row 1 (PDF)</Badge>
+                      ) : (
+                        <Badge variant="success">Free • Row 2 (Text)</Badge>
+                      )
                     ) : (
                       <Badge variant="warning">
                         Week {resource.unlockWeek}

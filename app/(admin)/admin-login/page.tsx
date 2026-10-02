@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -103,6 +104,15 @@ export default function AdminLoginPage() {
             register={register('password')}
             error={errors.password?.message}
           />
+
+          <div className="text-right">
+            <Link
+              href="/forgot-password?role=admin"
+              className="text-xs font-semibold text-electric-blue hover:underline"
+            >
+              Forgot password?
+            </Link>
+          </div>
 
           {serverError && (
             <p className="rounded-lab bg-red-50 px-4 py-3 text-sm text-seat-reserved">

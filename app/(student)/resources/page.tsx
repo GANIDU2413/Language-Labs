@@ -33,7 +33,7 @@ function currentWeekOf(lab: Lab): number {
     (Date.now() - lab.startDate.toMillis()) / (1000 * 60 * 60 * 24)
   )
   if (days < 0) return 0
-  return Math.min(Math.ceil((days + 1) / 7), 8)
+  return Math.min(Math.ceil((days + 1) / 7), 16)
 }
 
 function ResourceCard({ resource }: { resource: Resource }) {
@@ -191,11 +191,29 @@ export default function StudentResourcesPage() {
     )
   }
 
-  const currentWeek = lab ? currentWeekOf(lab) : 0
+  const currentWeek = lab
+    ? lab.status === 'completed'
+      ? 16
+      : Math.max(
+          lab.currentWeek ?? 1,
+          (lab.weekCompleted ?? 0) + 1,
+          currentWeekOf(lab)
+        )
+    : 0
 
   const matchesFilter = (r: Resource) => filter === 'all' || r.type === filter
 
-  const freeResources = resources.filter((r) => r.isFree && matchesFilter(r))
+  const freeResources = resources
+    .filter((r) => r.isFree && r.type !== 'youtube' && matchesFilter(r))
+    .sort((a, b) => {
+      if (a.type !== b.type) {
+        if (a.type === 'pdf') return -1
+        if (b.type === 'pdf') return 1
+      }
+      return (
+        (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0)
+      )
+    })
   const labResources = resources
     .filter((r) => !r.isFree && matchesFilter(r))
     .sort((a, b) => (a.unlockWeek ?? 0) - (b.unlockWeek ?? 0))

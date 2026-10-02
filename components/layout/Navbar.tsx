@@ -7,7 +7,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Logo from '@/components/layout/Logo'
 
 const navLinks = [
-  { href: '/learning-materials', label: 'Learning Materials' },
+  { href: '/#inside-the-lab', label: 'Learning Materials' },
   { href: '/about', label: 'About Us' },
   { href: '/contact', label: 'Contact Us' },
 ]
@@ -15,6 +15,22 @@ const navLinks = [
 export default function Navbar() {
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+
+  const handleNavClick = (
+    e: React.MouseEvent<HTMLAnchorElement>,
+    href: string
+  ) => {
+    if (href.startsWith('/#')) {
+      const targetId = href.replace('/#', '')
+      if (pathname === '/') {
+        e.preventDefault()
+        const element = document.getElementById(targetId)
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth' })
+        }
+      }
+    }
+  }
 
   const linkClass = (href: string) =>
     `font-medium transition-colors hover:text-electric-blue ${
@@ -30,7 +46,12 @@ export default function Navbar() {
         {/* Desktop links */}
         <div className="hidden items-center gap-8 md:flex">
           {navLinks.map((link) => (
-            <Link key={link.href} href={link.href} className={linkClass(link.href)}>
+            <Link
+              key={link.href}
+              href={link.href}
+              onClick={(e) => handleNavClick(e, link.href)}
+              className={linkClass(link.href)}
+            >
               {link.label}
             </Link>
           ))}
@@ -82,7 +103,10 @@ export default function Navbar() {
                 <Link
                   key={link.href}
                   href={link.href}
-                  onClick={() => setMenuOpen(false)}
+                  onClick={(e) => {
+                    handleNavClick(e, link.href)
+                    setMenuOpen(false)
+                  }}
                   className={`${linkClass(link.href)} rounded-lab px-2 py-2.5`}
                 >
                   {link.label}

@@ -65,7 +65,38 @@ export interface BankDetails {
   accountNumber: string;
   bankName: string;
   branch: string;
+  instructions?: string;
 }
+
+/** About Us page content managed by admin (doc: admins/about) */
+export interface AboutContent {
+  heroTitle: string;
+  heroSubtitle: string;
+  missionTitle: string;
+  missionDescription: string;
+  storyTitle: string;
+  storyDescription: string;
+  principle1Title?: string;
+  principle1Desc?: string;
+  principle2Title?: string;
+  principle2Desc?: string;
+  principle3Title?: string;
+  principle3Desc?: string;
+  principle4Title?: string;
+  principle4Desc?: string;
+}
+
+/** Contact Us page content managed by admin (doc: admins/contact) */
+export interface ContactContent {
+  heading: string;
+  subheading: string;
+  email: string;
+  phone: string;
+  whatsappNumber: string;
+  address: string;
+  operatingHours: string;
+}
+
 
 export interface MentorProfile {
   firstName: string;
@@ -253,6 +284,8 @@ export interface Resource {
   youtubeUrl?: string;
   /** Optional custom thumbnail — falls back to the YouTube-derived one */
   thumbnailUrl?: string;
+  /** Optional mini thumbnail image path, e.g. /images/mini-images/mini-c-1.png */
+  thumbnailImage?: string;
   /** Inline post content — for type 'text' */
   content?: string;
   /** Free resources show on the public site; others unlock by week */

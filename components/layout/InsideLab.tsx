@@ -4,6 +4,13 @@ import { queryCollection } from '@/lib/firestore'
 import { getYouTubeId } from '@/lib/utils'
 import type { Resource } from '@/types'
 
+function getTimestampMillis(r: Resource): number {
+  if (!r.createdAt) return 0
+  if (typeof r.createdAt.toMillis === 'function') return r.createdAt.toMillis()
+  if (r.createdAt instanceof Date) return r.createdAt.getTime()
+  return 0
+}
+
 async function getLabVideos(): Promise<Resource[]> {
   try {
     const free = await queryCollection<Resource>(
@@ -12,7 +19,9 @@ async function getLabVideos(): Promise<Resource[]> {
       '==',
       true
     )
-    return free.filter((r) => r.type === 'youtube' && r.youtubeUrl)
+    return free
+      .filter((r) => r.type === 'youtube' && Boolean(r.youtubeUrl))
+      .sort((a, b) => getTimestampMillis(b) - getTimestampMillis(a))
   } catch {
     return []
   }
@@ -32,7 +41,11 @@ async function VideoGrid() {
   return (
     <div className="mt-12 grid grid-cols-1 gap-6 md:grid-cols-3">
       {videos.map((video) => {
-        const videoId = getYouTubeId(video.youtubeUrl!)
+        const videoId = video.youtubeUrl ? getYouTubeId(video.youtubeUrl) : null
+        const thumbnail =
+          video.thumbnailUrl ||
+          (videoId ? `https://img.youtube.com/vi/${videoId}/hqdefault.jpg` : null)
+
         return (
           <a
             key={video.id}
@@ -42,15 +55,15 @@ async function VideoGrid() {
             className="group overflow-hidden rounded-lab bg-lab-white shadow-sm transition-shadow hover:shadow-md"
           >
             <div className="relative aspect-video bg-deep-blue">
-              {videoId && (
+              {thumbnail ? (
                 <Image
-                  src={`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`}
+                  src={thumbnail}
                   alt={video.title}
                   fill
                   sizes="(max-width: 768px) 100vw, 33vw"
                   className="object-cover transition-transform duration-300 group-hover:scale-105"
                 />
-              )}
+              ) : null}
               {/* Play icon overlay */}
               <span className="absolute inset-0 flex items-center justify-center">
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-deep-blue/70 pl-1 text-2xl text-lab-white transition-colors group-hover:bg-electric-blue">
@@ -83,7 +96,7 @@ function VideosSkeleton() {
 
 export default function InsideLab() {
   return (
-    <section className="bg-lab-white">
+    <section id="inside-the-lab" className="bg-lab-white scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 py-20">
         <h2 className="text-center text-3xl font-bold text-deep-blue sm:text-4xl">
           Inside the Lab

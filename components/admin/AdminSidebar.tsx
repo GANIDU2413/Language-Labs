@@ -21,7 +21,8 @@ const navItems = [
   { href: '/admin/speaking-review', icon: '🎙️', label: 'Review Speaking Tests' },
   { href: '/admin/inclass-test', icon: '⏱️', label: 'In-Class Test' },
   { href: '/admin/waiting-list', icon: '⏳', label: 'Waiting List' },
-  { href: '/admin/profile', icon: '⚙️', label: 'Profile' },
+  { href: '/admin/profile', icon: '🧑‍🔬', label: 'Mentor Profile' },
+  { href: '/admin/settings', icon: '⚙️', label: 'Site Settings' },
 ]
 
 export default function AdminSidebar() {

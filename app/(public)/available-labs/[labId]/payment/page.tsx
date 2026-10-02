@@ -197,8 +197,9 @@ function PaymentContent() {
 
       {/* Instructions */}
       <p className="mt-6 rounded-lab bg-blue-light px-5 py-4 text-sm leading-relaxed text-deep-blue">
-        💡 Transfer the exact amount and send us your receipt via WhatsApp.
-        Your desk will be confirmed once we verify your payment.
+        💡{' '}
+        {bank.instructions ||
+          'Transfer the exact amount and send us your receipt via WhatsApp. Your desk will be confirmed once we verify your payment.'}
       </p>
 
       {error && (

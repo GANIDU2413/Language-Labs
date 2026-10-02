@@ -2,13 +2,14 @@
 
 import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { deleteDocument, getCollection, queryCollection } from '@/lib/firestore'
+import { deleteDocument, getCollection, queryCollection, updateDocument } from '@/lib/firestore'
 import { formatDate } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { CardGridSkeleton } from '@/components/ui/Skeleton'
+import { toast } from '@/hooks/useToast'
 import type { Booking, Lab, LabStatus } from '@/types'
 
 const tabs: { value: LabStatus; label: string }[] = [
@@ -66,6 +67,55 @@ function LabsContent() {
       setDeleteError('Delete failed. Please try again.')
     } finally {
       setDeleteBusy(false)
+    }
+  }
+
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null)
+
+  async function handleStartLab(lab: Lab) {
+    setActionBusyId(lab.id)
+    try {
+      await updateDocument<Lab>('labs', lab.id, {
+        status: 'ongoing',
+        currentWeek: lab.currentWeek ?? 1,
+      })
+      setLabs((current) =>
+        current?.map((l) =>
+          l.id === lab.id ? { ...l, status: 'ongoing' as const } : l
+        ) ?? null
+      )
+      setTab('ongoing')
+      toast.success(`${lab.name} has started and moved to Ongoing Labs! ⚗️`)
+    } catch {
+      toast.error('Could not start the lab. Please try again.')
+    } finally {
+      setActionBusyId(null)
+    }
+  }
+
+  async function handleCompleteLab(lab: Lab) {
+    setActionBusyId(lab.id)
+    try {
+      await updateDocument<Lab>('labs', lab.id, {
+        status: 'completed',
+        weekCompleted: 8,
+        currentWeek: 8,
+      })
+      setLabs((current) =>
+        current?.map((l) =>
+          l.id === lab.id
+            ? { ...l, status: 'completed' as const, weekCompleted: 8 }
+            : l
+        ) ?? null
+      )
+      setTab('completed')
+      toast.success(
+        `${lab.name} marked as Completed! Certificates are unlocked. 🎓`
+      )
+    } catch {
+      toast.error('Could not complete the lab. Please try again.')
+    } finally {
+      setActionBusyId(null)
     }
   }
 
@@ -139,32 +189,51 @@ function LabsContent() {
                     👥 {students} / 6 students
                   </p>
                 </div>
-                {(canEdit || canDelete) && (
-                  <div className="mt-4 flex gap-3">
-                    {canEdit && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled
-                        title="Lab editing is coming soon"
-                      >
-                        Edit
-                      </Button>
-                    )}
-                    {canDelete && (
-                      <Button
-                        variant="danger"
-                        size="sm"
-                        onClick={() => {
-                          setDeleteError('')
-                          setDeleting(lab)
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    )}
-                  </div>
-                )}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {lab.status === 'notStarted' && students >= 1 && (
+                    <Button
+                      size="sm"
+                      loading={actionBusyId === lab.id}
+                      onClick={() => handleStartLab(lab)}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+                    >
+                      Start Lab 🚀
+                    </Button>
+                  )}
+                  {lab.status === 'ongoing' && (
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      loading={actionBusyId === lab.id}
+                      onClick={() => handleCompleteLab(lab)}
+                      className="border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                    >
+                      🎓 Complete Lab
+                    </Button>
+                  )}
+                  {canEdit && (
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      disabled
+                      title="Lab editing is coming soon"
+                    >
+                      Edit
+                    </Button>
+                  )}
+                  {canDelete && (
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => {
+                        setDeleteError('')
+                        setDeleting(lab)
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  )}
+                </div>
               </Card>
             )
           })}

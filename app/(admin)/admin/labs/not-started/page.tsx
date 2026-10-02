@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { doc, Timestamp, writeBatch } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
 import { getCollection, queryCollection } from '@/lib/firestore'
@@ -64,12 +65,18 @@ function rejectedEmailHtml(name: string, lab: Lab): string {
 }
 
 export default function NotStartedLabsPage() {
+  const router = useRouter()
   const [labs, setLabs] = useState<Lab[] | null>(null)
   const [bookingsByLab, setBookingsByLab] = useState<Record<string, Booking[]>>({})
   const [search, setSearch] = useState('')
   const [dialog, setDialog] = useState<DialogState>(null)
   const [busy, setBusy] = useState(false)
   const [dialogError, setDialogError] = useState('')
+
+  const [startLabModal, setStartLabModal] = useState<Lab | null>(null)
+  const [startBusy, setStartBusy] = useState(false)
+  const [startError, setStartError] = useState('')
+  const [autoConfirmPending, setAutoConfirmPending] = useState(true)
 
   useEffect(() => {
     Promise.all([
@@ -182,6 +189,77 @@ export default function NotStartedLabsPage() {
     }
   }
 
+  async function handleStartLab() {
+    if (!startLabModal) return
+    setStartBusy(true)
+    setStartError('')
+    const lab = startLabModal
+    const bookings = bookingsByLab[lab.id] ?? []
+    const pendingBookings = bookings.filter((b) => b.paymentStatus === 'pending')
+
+    try {
+      const batch = writeBatch(db)
+      const labRef = doc(db, 'labs', lab.id)
+      const now = Timestamp.now()
+
+      let updatedSeats = [...(lab.seats ?? [])]
+
+      if (autoConfirmPending && pendingBookings.length > 0) {
+        for (const booking of pendingBookings) {
+          const bookingRef = doc(db, 'bookings', booking.id)
+          batch.update(bookingRef, {
+            paymentStatus: 'confirmed',
+            paymentConfirmedAt: now,
+          })
+          batch.update(doc(db, 'users', booking.studentId), {
+            status: 'enrolled',
+            dashboardUnlocked: true,
+            enrolledLabId: lab.id,
+          })
+
+          // Non-blocking confirmation email
+          fetch('/api/send-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: booking.studentEmail,
+              subject: 'Your Language Labs Seat is Confirmed! 🎉',
+              html: confirmedEmailHtml(
+                booking.studentName,
+                lab,
+                `${window.location.origin}/login`
+              ),
+            }),
+          }).catch(() => {})
+        }
+
+        updatedSeats = updatedSeats.map((seat) => {
+          const match = pendingBookings.find(
+            (b) => b.seatNumber === seat.seatNumber
+          )
+          return match ? { ...seat, status: 'confirmed' as const } : seat
+        })
+      }
+
+      batch.update(labRef, {
+        status: 'ongoing',
+        currentWeek: lab.currentWeek ?? 1,
+        seats: updatedSeats,
+      })
+
+      await batch.commit()
+
+      setLabs((current) => current?.filter((l) => l.id !== lab.id) ?? null)
+      setStartLabModal(null)
+      toast.success(`${lab.name} has started and moved to Ongoing Labs! ⚗️`)
+      router.push('/admin/labs/ongoing')
+    } catch {
+      setStartError('Could not start the lab. Please try again.')
+    } finally {
+      setStartBusy(false)
+    }
+  }
+
   if (!labs) {
     return (
       <div className="px-4 py-8 sm:px-8">
@@ -228,6 +306,13 @@ export default function NotStartedLabsPage() {
             const confirmedCount = bookings.filter(
               (b) => b.paymentStatus === 'confirmed'
             ).length
+            const registeredCount = bookings.filter(
+              (b) => b.paymentStatus !== 'rejected'
+            ).length
+            const canStartLab =
+              registeredCount >= 1 ||
+              (lab.seats ?? []).some((s) => s.status !== 'available')
+
             return (
               <Card key={lab.id}>
                 <div className="flex flex-wrap items-start justify-between gap-3">
@@ -240,9 +325,23 @@ export default function NotStartedLabsPage() {
                       {lab.schedule}
                     </p>
                   </div>
-                  <Badge variant={confirmedCount === 6 ? 'success' : 'info'}>
-                    {confirmedCount} / 6 seats confirmed
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant={confirmedCount === 6 ? 'success' : 'info'}>
+                      {confirmedCount} / 6 seats confirmed
+                    </Badge>
+                    {canStartLab && (
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          setStartError('')
+                          setStartLabModal(lab)
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-sm"
+                      >
+                        Start Lab 🚀
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {bookings.length === 0 ? (
@@ -348,6 +447,80 @@ export default function NotStartedLabsPage() {
                 onClick={processDialog}
               >
                 {dialog.action === 'confirm' ? 'Yes, Confirm' : 'Yes, Reject'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Start Lab Modal */}
+      {startLabModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-blue/60 px-4">
+          <Card className="w-full max-w-md text-left">
+            <div className="text-center">
+              <p className="text-4xl">🚀</p>
+              <h3 className="mt-2 text-xl font-bold text-deep-blue">
+                Start {startLabModal.name}?
+              </h3>
+              <p className="mt-1 text-sm text-gray-500">
+                This will transition the lab to Ongoing status and move it to the <strong>Ongoing Labs</strong> dashboard.
+              </p>
+            </div>
+
+            {(() => {
+              const bList = bookingsByLab[startLabModal.id] ?? []
+              const conf = bList.filter((b) => b.paymentStatus === 'confirmed').length
+              const pend = bList.filter((b) => b.paymentStatus === 'pending').length
+              return (
+                <div className="mt-4 rounded-lab bg-blue-light/50 p-4 text-sm text-gray-700 space-y-2">
+                  <div className="flex justify-between font-medium">
+                    <span>Confirmed Students:</span>
+                    <span className="font-bold text-green-700">{conf} / 6</span>
+                  </div>
+                  {pend > 0 && (
+                    <div className="flex justify-between font-medium">
+                      <span>Pending Payments:</span>
+                      <span className="font-bold text-amber-700">{pend} desk(s)</span>
+                    </div>
+                  )}
+                  {pend > 0 && (
+                    <label className="mt-3 flex items-start gap-2.5 pt-2 border-t border-blue-light cursor-pointer text-xs">
+                      <input
+                        type="checkbox"
+                        checked={autoConfirmPending}
+                        onChange={(e) => setAutoConfirmPending(e.target.checked)}
+                        className="mt-0.5 accent-electric-blue rounded"
+                      />
+                      <span className="text-deep-blue font-medium">
+                        Auto-confirm all {pend} pending booking(s) and unlock their student dashboards now
+                      </span>
+                    </label>
+                  )}
+                </div>
+              )
+            })()}
+
+            {startError && (
+              <p className="mt-3 rounded-lab bg-red-50 px-4 py-3 text-sm text-seat-reserved">
+                {startError}
+              </p>
+            )}
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setStartLabModal(null)}
+                disabled={startBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="primary"
+                loading={startBusy}
+                onClick={handleStartLab}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+              >
+                Yes, Start Lab 🚀
               </Button>
             </div>
           </Card>

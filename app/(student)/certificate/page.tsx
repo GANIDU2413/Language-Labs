@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { toast } from '@/hooks/useToast'
 import type { AttendanceRecord, Lab, MentorProfile, User } from '@/types'
 
 const TOTAL_SESSIONS = 16
@@ -63,8 +64,19 @@ export default function CertificatePage() {
       .finally(() => setLoading(false))
   }, [user, firebaseUser])
 
+  const totalSessions = lab?.totalSessions || TOTAL_SESSIONS
+  const effectiveSessions = Math.max(
+    presentCount,
+    (lab?.weekCompleted ?? 0) * 2,
+    lab?.status === 'completed' ? totalSessions : 0
+  )
   const isComplete =
-    !!lab && (lab.status === 'completed' || presentCount >= TOTAL_SESSIONS)
+    !!lab && (
+      lab.status === 'completed' ||
+      presentCount >= totalSessions ||
+      (lab.weekCompleted ?? 0) >= Math.ceil(totalSessions / 2) ||
+      effectiveSessions >= totalSessions
+    )
 
   /** Render the certificate div to a landscape A4 jsPDF document */
   async function buildPdf(): Promise<jsPDF | null> {
@@ -95,7 +107,11 @@ export default function CertificatePage() {
     setDownloading(true)
     try {
       const pdf = await buildPdf()
-      pdf?.save('language-labs-certificate.pdf')
+      if (!pdf) throw new Error('Could not generate PDF')
+      pdf.save('language-labs-certificate.pdf')
+      toast.success('Certificate downloaded successfully! 🎓')
+    } catch {
+      toast.error('Could not download certificate PDF. Please try again.')
     } finally {
       setDownloading(false)
     }
@@ -173,13 +189,13 @@ export default function CertificatePage() {
         <Card className="mt-6 max-w-md text-center">
           <p className="text-4xl">🔬</p>
           <h2 className="mt-3 font-bold text-deep-blue">
-            You have completed {presentCount} of {TOTAL_SESSIONS} sessions
+            You have completed {effectiveSessions} of {totalSessions} sessions
           </h2>
           <div className="mt-4 h-3 overflow-hidden rounded-full bg-blue-light">
             <motion.div
               initial={{ width: 0 }}
               animate={{
-                width: `${(presentCount / TOTAL_SESSIONS) * 100}%`,
+                width: `${Math.min((effectiveSessions / totalSessions) * 100, 100)}%`,
               }}
               transition={{ duration: 0.8 }}
               className="h-full rounded-full bg-electric-blue"
@@ -190,7 +206,7 @@ export default function CertificatePage() {
             importantly, to confident English. Keep showing up, scientist! 💪
           </p>
           <Button disabled className="mt-6">
-            Certificate unlocks when you complete all {TOTAL_SESSIONS} sessions
+            Certificate unlocks when you complete all {totalSessions} sessions
           </Button>
         </Card>
       </div>
@@ -235,8 +251,8 @@ export default function CertificatePage() {
                 {user.fullName}
               </p>
               <p className="mx-auto mt-1 max-w-md text-[10px] leading-relaxed text-[#5A6472] sm:mt-3 sm:text-sm">
-                has successfully completed the Language Labs English Course
-                comprising of 16 sessions over 8 weeks
+                has successfully completed the comprehensive Language Labs English Course
+                comprising 16 sessions across the full curriculum
               </p>
             </div>
 

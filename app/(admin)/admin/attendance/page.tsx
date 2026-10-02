@@ -161,16 +161,53 @@ function AttendanceContent() {
     if (!selectedLab) return
     setWeekBusy(true)
     try {
-      await updateDocument<Lab>('labs', selectedLab.id, { weekCompleted: week })
+      const nextWeek = Math.min(week + 1, 16)
+      await updateDocument<Lab>('labs', selectedLab.id, {
+        weekCompleted: week,
+        currentWeek: Math.max(selectedLab.currentWeek ?? 1, nextWeek),
+      })
       setLabs(
         (current) =>
           current?.map((l) =>
-            l.id === selectedLab.id ? { ...l, weekCompleted: week } : l
+            l.id === selectedLab.id
+              ? {
+                  ...l,
+                  weekCompleted: week,
+                  currentWeek: Math.max(l.currentWeek ?? 1, nextWeek),
+                }
+              : l
           ) ?? null
       )
-      toast.success(`Week ${week} marked as complete.`)
+      toast.success(`Week ${week} marked as complete and next week unlocked.`)
     } catch {
       toast.error('Could not update the week. Please try again.')
+    } finally {
+      setWeekBusy(false)
+    }
+  }
+
+  async function handleCompleteEntireLab() {
+    if (!selectedLab) return
+    setWeekBusy(true)
+    try {
+      await updateDocument<Lab>('labs', selectedLab.id, {
+        status: 'completed',
+        weekCompleted: 8,
+        currentWeek: 8,
+      })
+      setLabs(
+        (current) =>
+          current?.map((l) =>
+            l.id === selectedLab.id
+              ? { ...l, status: 'completed' as const, weekCompleted: 8 }
+              : l
+          ) ?? null
+      )
+      toast.success(
+        `${selectedLab.name} marked as Completed! Certificates unlocked for students. 🎓`
+      )
+    } catch {
+      toast.error('Could not complete the lab. Please try again.')
     } finally {
       setWeekBusy(false)
     }
@@ -327,6 +364,16 @@ function AttendanceContent() {
                   ? `Week ${week} already complete ✓`
                   : `Mark Week ${week} Progress as Complete`}
               </Button>
+              {selectedLab?.status !== 'completed' && (
+                <Button
+                  variant="secondary"
+                  loading={weekBusy}
+                  onClick={handleCompleteEntireLab}
+                  className="border-green-300 text-green-700 bg-green-50 hover:bg-green-100"
+                >
+                  🎓 Complete Entire Lab
+                </Button>
+              )}
             </div>
           </Card>
 

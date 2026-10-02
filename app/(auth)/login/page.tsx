@@ -126,14 +126,22 @@ export default function LoginPage() {
           }
         />
 
-        <div className="text-right">
-          <button
-            type="button"
-            onClick={() => setShowForgotHelp((v) => !v)}
-            className="text-sm font-medium text-electric-blue hover:underline"
+        <div className="flex items-center justify-between text-sm">
+          <Link
+            href="/forgot-password"
+            className="font-medium text-electric-blue hover:underline"
           >
             Forgot password?
-          </button>
+          </Link>
+          {whatsappNumber && (
+            <button
+              type="button"
+              onClick={() => setShowForgotHelp((v) => !v)}
+              className="text-xs text-gray-400 hover:text-deep-blue"
+            >
+              Need WhatsApp help?
+            </button>
+          )}
         </div>
 
         {showForgotHelp && (

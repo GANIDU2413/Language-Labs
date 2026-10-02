@@ -1,10 +1,12 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { motion } from 'framer-motion'
 import { getDocument, queryCollection } from '@/lib/firestore'
 import { COURSE_MODULES, formatDate } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
+import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import ErrorState from '@/components/ui/ErrorState'
 import { CardGridSkeleton, Skeleton } from '@/components/ui/Skeleton'
@@ -112,10 +114,14 @@ export default function DashboardPage() {
     )
   }
 
-  const weekCompleted = lab.weekCompleted ?? 0
+  const weekCompleted = lab?.weekCompleted ?? 0
   const today = new Date()
+  const isLabFinished =
+    lab?.status === 'completed' ||
+    (lab?.weekCompleted ?? 0) >= Math.ceil((lab?.totalSessions ?? 16) / 2)
 
   function sessionStatus(session: number): SessionStatus {
+    if (lab?.status === 'completed') return 'completed'
     const record = attendance.find((a) => a.sessionNumber === session)
     if (record) return record.present ? 'completed' : 'missed'
     if (Math.ceil(session / 2) <= weekCompleted) return 'completed'
@@ -123,15 +129,17 @@ export default function DashboardPage() {
     return 'upcoming'
   }
 
-  const sessions = Array.from({ length: lab.totalSessions }, (_, i) => i + 1)
-  const completedCount = sessions.filter((s) =>
-    ['completed', 'missed'].includes(sessionStatus(s))
-  ).length
+  const sessions = Array.from({ length: lab?.totalSessions ?? 16 }, (_, i) => i + 1)
+  const completedCount = isLabFinished
+    ? (lab?.totalSessions ?? 16)
+    : sessions.filter((s) => ['completed', 'missed'].includes(sessionStatus(s))).length
 
   // Next session = first one that isn't done yet
-  const nextSession = sessions.find(
-    (s) => !['completed', 'missed'].includes(sessionStatus(s))
-  )
+  const nextSession = isLabFinished
+    ? null
+    : sessions.find(
+        (s) => !['completed', 'missed'].includes(sessionStatus(s))
+      )
 
   const modulesCompleted = lab.modulesCompleted ?? []
 
@@ -170,6 +178,36 @@ export default function DashboardPage() {
           </Card>
         </div>
       </motion.div>
+
+      {/* Course Completion Banner */}
+      {(isLabFinished || completedCount >= lab.totalSessions) && (
+        <motion.div
+          initial={{ opacity: 0, scale: 0.96 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="mt-6 rounded-lab border-2 border-green-300 bg-green-50/90 p-5 shadow-sm"
+        >
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <span className="flex h-12 w-12 items-center justify-center rounded-full bg-green-100 text-2xl">
+                🎓
+              </span>
+              <div>
+                <h3 className="font-bold text-deep-blue text-lg">
+                  Congratulations, {user.firstName}! Course Completed!
+                </h3>
+                <p className="text-sm text-gray-600">
+                  You have successfully completed all 16 sessions of the curriculum. Your Certificate of Completion is ready.
+                </p>
+              </div>
+            </div>
+            <Link href="/certificate" className="shrink-0 w-full sm:w-auto">
+              <Button className="w-full sm:w-auto bg-green-600 hover:bg-green-700 text-white font-semibold shadow-sm">
+                View Certificate 🏅
+              </Button>
+            </Link>
+          </div>
+        </motion.div>
+      )}
 
       {/* Experiment progress tracker */}
       <Card className="mt-8">
@@ -256,8 +294,9 @@ export default function DashboardPage() {
       <Card className="mt-8">
         <h2 className="font-bold text-deep-blue">🧬 Module Completion</h2>
         <p className="mt-1 text-sm text-gray-500">
-          {modulesCompleted.length} of {COURSE_MODULES.length} modules covered
-          in your lab so far.
+          {isLabFinished
+            ? `All ${COURSE_MODULES.length} course modules completed!`
+            : `${modulesCompleted.length} of ${COURSE_MODULES.length} modules covered in your lab so far.`}
         </p>
         <motion.div
           initial="hidden"
@@ -266,7 +305,7 @@ export default function DashboardPage() {
           className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4"
         >
           {COURSE_MODULES.map((module) => {
-            const done = modulesCompleted.includes(module)
+            const done = isLabFinished || modulesCompleted.includes(module)
             return (
               <motion.div
                 key={module}
