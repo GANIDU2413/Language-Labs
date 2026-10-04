@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { onAuthStateChanged, type User as FirebaseUser } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, onSnapshot } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
 import type { User } from '@/types'
 
@@ -43,38 +43,55 @@ export function useAuth() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
+    let unsubUserDoc: (() => void) | null = null
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (fbUser) => {
       setFirebaseUser(fbUser)
+
+      if (unsubUserDoc) {
+        unsubUserDoc()
+        unsubUserDoc = null
+      }
+
       if (!fbUser) {
         setUser(null)
         clearAuthCookie()
         setLoading(false)
         return
       }
-      try {
-        const snap = await getDoc(doc(db, 'users', fbUser.uid))
-        if (snap.exists()) {
-          const profile = snap.data() as User
-          if (profile.disabled) {
+
+      unsubUserDoc = onSnapshot(
+        doc(db, 'users', fbUser.uid),
+        async (snap) => {
+          if (snap.exists()) {
+            const profile = snap.data() as User
+            if (profile.disabled) {
+              setUser(null)
+              setFirebaseUser(null)
+              clearAuthCookie()
+              await auth.signOut().catch(() => {})
+              setLoading(false)
+              return
+            }
+            setUser(profile)
+            setAuthCookie(profile)
+          } else {
             setUser(null)
-            setFirebaseUser(null)
             clearAuthCookie()
-            await auth.signOut()
-            setLoading(false)
-            return
           }
-          setUser(profile)
-          setAuthCookie(profile)
-        } else {
+          setLoading(false)
+        },
+        () => {
           setUser(null)
-          clearAuthCookie()
+          setLoading(false)
         }
-      } catch {
-        setUser(null)
-      }
-      setLoading(false)
+      )
     })
-    return unsubscribe
+
+    return () => {
+      unsubscribeAuth()
+      if (unsubUserDoc) unsubUserDoc()
+    }
   }, [])
 
   return {
