@@ -23,7 +23,15 @@ const RESEND_WAIT_SECONDS = 30
 
 function VerifyOtpForm() {
   const router = useRouter()
-  const email = useSearchParams().get('email') ?? ''
+  const searchParams = useSearchParams()
+  const email = searchParams.get('email') ?? ''
+  const redirectParam = searchParams.get('redirect')
+
+  const storedRedirect =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('ll_intended_payment')
+      : null
+  const targetRedirect = redirectParam || storedRedirect
 
   const [digits, setDigits] = useState<string[]>(Array(CODE_LENGTH).fill(''))
   const [loading, setLoading] = useState(false)
@@ -105,7 +113,14 @@ function VerifyOtpForm() {
           }
         }
         setSuccess(true)
-        setTimeout(() => router.push('/test'), 1600)
+        if (targetRedirect && targetRedirect.startsWith('/')) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('ll_intended_payment')
+          }
+          setTimeout(() => router.push(targetRedirect), 1600)
+        } else {
+          setTimeout(() => router.push('/test'), 1600)
+        }
       } else {
         setError(data.error ?? 'Verification failed. Please try again.')
         setShake(true)
@@ -186,11 +201,24 @@ function VerifyOtpForm() {
       <h1 className="text-center text-2xl font-bold text-deep-blue">
         Check Your Email 📬
       </h1>
-      <p className="mb-6 mt-2 text-center text-sm text-gray-500">
+      <p className="mt-2 text-center text-sm text-gray-500">
         We sent a 6-digit code to{' '}
         <span className="font-semibold text-deep-blue">{email}</span>. Enter it
         below to verify your account.
       </p>
+
+      {/* Instructional notice for microphone and speaker permissions */}
+      <div className="my-5 flex items-start gap-3 rounded-lab border border-electric-blue/30 bg-blue-light/70 p-3.5 text-left">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-electric-blue text-sm text-lab-white shadow-xs">
+          🎧
+        </span>
+        <div className="text-xs leading-relaxed text-deep-blue">
+          <p className="font-semibold text-deep-blue">Level Test Preparation Notice</p>
+          <p className="text-gray-700">
+            Please allow your microphone for this test and make sure your speakers are turned up.
+          </p>
+        </div>
+      </div>
 
       <motion.div
         animate={shake ? { x: [0, -10, 10, -10, 10, 0] } : { x: 0 }}

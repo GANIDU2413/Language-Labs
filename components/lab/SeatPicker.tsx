@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
 import { doc, onSnapshot } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
@@ -115,10 +116,15 @@ export default function SeatPicker({ labId, onSeatSelected }: SeatPickerProps) {
   return (
     <div className="mx-auto w-full max-w-lg">
       {/* Teacher / board area */}
-      <div className="rounded-lab bg-deep-blue py-4 text-center">
-        <p className="text-sm font-semibold text-lab-white">
-          🧑‍🏫 Teacher &amp; Whiteboard
-        </p>
+      <div className="relative w-full overflow-hidden rounded-lab shadow-sm">
+        <Image
+          src="/images/Teacher&Whiteboard.jpg"
+          alt="Teacher & Whiteboard"
+          width={2749}
+          height={666}
+          priority
+          className="h-auto w-full rounded-lab object-cover"
+        />
       </div>
       <p className="mt-1 text-center text-xs uppercase tracking-widest text-gray-400">
         Front of the lab

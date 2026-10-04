@@ -3,13 +3,15 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { motion } from 'framer-motion'
+import { collection, onSnapshot, query, where } from 'firebase/firestore'
+import { db } from '@/lib/firebase'
 import { getCollection, queryCollection } from '@/lib/firestore'
 import Card from '@/components/ui/Card'
 import type {
   InClassTest,
   Lab,
   Resource,
-  TestResult,
+  Suggestion,
   User,
   WaitingListEntry,
 } from '@/types'
@@ -19,32 +21,58 @@ interface DashboardCounts {
   upcomingLabs: number
   ongoingLabs: number
   resources: number
-  unreviewed: number
   inClassTests: number
   waitingList: number
+  suggestions: number
 }
 
 export default function AdminDashboardPage() {
   const [counts, setCounts] = useState<DashboardCounts | null>(null)
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0)
+  const [unreviewedCount, setUnreviewedCount] = useState(0)
+
+  // Live query for pending payments
+  useEffect(() => {
+    const q = query(
+      collection(db, 'bookings'),
+      where('paymentStatus', '==', 'pending')
+    )
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setPendingPaymentsCount(snap.size)
+    })
+    return unsubscribe
+  }, [])
+
+  // Live query for unreviewed speaking tests
+  useEffect(() => {
+    const q = query(
+      collection(db, 'testResults'),
+      where('reviewedByAdmin', '==', false)
+    )
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setUnreviewedCount(snap.size)
+    })
+    return unsubscribe
+  }, [])
 
   useEffect(() => {
     Promise.all([
       queryCollection<User>('users', 'role', '==', 'student'),
       getCollection<Lab>('labs'),
       getCollection<Resource>('resources'),
-      queryCollection<TestResult>('testResults', 'reviewedByAdmin', '==', false),
       getCollection<InClassTest>('inClassTests'),
       getCollection<WaitingListEntry>('waitingList'),
+      getCollection<Suggestion>('suggestions'),
     ])
-      .then(([students, labs, resources, unreviewed, inClassTests, waiting]) =>
+      .then(([students, labs, resources, inClassTests, waiting, suggestions]) =>
         setCounts({
           students: students.length,
           upcomingLabs: labs.filter((l) => l.status === 'notStarted').length,
           ongoingLabs: labs.filter((l) => l.status === 'ongoing').length,
           resources: resources.length,
-          unreviewed: unreviewed.length,
           inClassTests: inClassTests.length,
           waitingList: waiting.length,
+          suggestions: suggestions.length,
         })
       )
       .catch(() =>
@@ -53,9 +81,9 @@ export default function AdminDashboardPage() {
           upcomingLabs: 0,
           ongoingLabs: 0,
           resources: 0,
-          unreviewed: 0,
           inClassTests: 0,
           waitingList: 0,
+          suggestions: 0,
         })
       )
   }, [])
@@ -77,7 +105,12 @@ export default function AdminDashboardPage() {
       href: '/admin/labs/not-started',
       icon: '🧪',
       label: 'New Labs',
-      status: `${counts.upcomingLabs} lab${counts.upcomingLabs === 1 ? '' : 's'} not started`,
+      status:
+        pendingPaymentsCount > 0
+          ? `${pendingPaymentsCount} payment${pendingPaymentsCount === 1 ? '' : 's'} pending review`
+          : `${counts.upcomingLabs} lab${counts.upcomingLabs === 1 ? '' : 's'} not started`,
+      highlight: pendingPaymentsCount > 0,
+      badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : undefined,
     },
     {
       href: '/admin/labs/ongoing',
@@ -107,8 +140,12 @@ export default function AdminDashboardPage() {
       href: '/admin/speaking-review',
       icon: '🎙️',
       label: 'Review Speaking Tests',
-      status: `${counts.unreviewed} pending review`,
-      highlight: counts.unreviewed > 0,
+      status:
+        unreviewedCount > 0
+          ? `${unreviewedCount} pending review`
+          : 'All tests reviewed',
+      highlight: unreviewedCount > 0,
+      badge: unreviewedCount > 0 ? unreviewedCount : undefined,
     },
     {
       href: '/admin/inclass-test',
@@ -122,6 +159,12 @@ export default function AdminDashboardPage() {
       label: 'Waiting List',
       status: `${counts.waitingList} on waiting list`,
     },
+    {
+      href: '/admin/suggestions',
+      icon: '💡',
+      label: 'Anonymous Suggestions',
+      status: `${counts.suggestions} suggestion${counts.suggestions === 1 ? '' : 's'} received`,
+    },
   ]
 
   return (
@@ -130,6 +173,33 @@ export default function AdminDashboardPage() {
       <p className="mt-1 text-sm text-gray-500">
         Everything happening in your lab, at a glance.
       </p>
+
+      {/* Alert banner for pending student payments */}
+      {pendingPaymentsCount > 0 && (
+        <div className="mt-6 flex flex-col gap-3 rounded-lab border-2 border-seat-reserved bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-seat-reserved text-lg font-bold text-lab-white">
+              {pendingPaymentsCount}
+            </span>
+            <div>
+              <p className="font-bold text-deep-blue">
+                {pendingPaymentsCount === 1
+                  ? '1 Student Payment Waiting for Verification'
+                  : `${pendingPaymentsCount} Student Payments Waiting for Verification`}
+              </p>
+              <p className="text-xs text-gray-600">
+                New payment receipt(s) submitted. Verify bank transfers in New Labs to reserve desks and unlock student dashboards.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/admin/labs/not-started"
+            className="inline-flex shrink-0 items-center justify-center rounded-lab bg-seat-reserved px-4 py-2 text-xs font-bold text-lab-white transition-colors hover:bg-seat-reserved/90"
+          >
+            Review Payments →
+          </Link>
+        </div>
+      )}
 
       {!cards ? (
         <div className="mt-8 grid animate-pulse grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -154,25 +224,34 @@ export default function AdminDashboardPage() {
             >
               <Link href={card.href}>
                 <Card
-                  className={`flex h-full items-center gap-4 transition-shadow hover:shadow-md ${
-                    card.highlight ? 'border-2 border-seat-reserved' : ''
+                  className={`flex h-full items-center justify-between gap-4 transition-all hover:shadow-md ${
+                    card.highlight
+                      ? 'border-2 border-seat-reserved ring-1 ring-seat-reserved/20'
+                      : ''
                   }`}
                 >
-                  <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-light text-2xl">
-                    {card.icon}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="font-bold text-deep-blue">{card.label}</p>
-                    <p
-                      className={`mt-0.5 text-sm ${
-                        card.highlight
-                          ? 'font-semibold text-seat-reserved'
-                          : 'text-gray-500'
-                      }`}
-                    >
-                      {card.status}
-                    </p>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-light text-2xl">
+                      {card.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="font-bold text-deep-blue">{card.label}</p>
+                      <p
+                        className={`mt-0.5 text-sm ${
+                          card.highlight
+                            ? 'font-semibold text-seat-reserved'
+                            : 'text-gray-500'
+                        }`}
+                      >
+                        {card.status}
+                      </p>
+                    </div>
                   </div>
+                  {card.badge !== undefined && card.badge > 0 && (
+                    <span className="shrink-0 rounded-full bg-seat-reserved px-2.5 py-0.5 text-xs font-bold text-lab-white shadow-sm">
+                      {card.badge}
+                    </span>
+                  )}
                 </Card>
               </Link>
             </motion.div>

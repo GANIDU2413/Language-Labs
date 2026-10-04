@@ -72,7 +72,7 @@ export default function NewLabPage() {
   async function onSubmit(data: NewLabForm) {
     setServerError('')
     try {
-      await addDocument<Lab>('labs', {
+      const newLabId = await addDocument<Lab>('labs', {
         name: data.labName.trim(),
         duration: data.duration.trim(),
         startDate: Timestamp.fromDate(new Date(data.startDate)),
@@ -89,7 +89,7 @@ export default function NewLabPage() {
       let notified = 0
       try {
         const waitingList = await getCollection<WaitingListEntry>('waitingList')
-        const link = `${window.location.origin}/available-labs`
+        const link = `${window.location.origin}/available-labs/${newLabId}`
         const results = await Promise.allSettled(
           waitingList.map((entry) =>
             fetch('/api/send-email', {

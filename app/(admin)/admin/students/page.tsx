@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import {
-  deleteDocument,
   getCollection,
+  purgeStudentData,
   queryCollection,
+  setStudentDisabled,
 } from '@/lib/firestore'
 import { formatDate } from '@/lib/utils'
 import { toast } from '@/hooks/useToast'
@@ -14,13 +15,13 @@ import Card from '@/components/ui/Card'
 import ErrorState from '@/components/ui/ErrorState'
 import Input from '@/components/ui/Input'
 import { TableSkeleton } from '@/components/ui/Skeleton'
-import type { AccountStatus, Booking, Lab, User } from '@/types'
+import type { AccountStatus, Lab, User } from '@/types'
 
 const RETENTION_DAYS = 7
 
 const statusBadge: Record<
   AccountStatus,
-  { label: string; variant: 'success' | 'warning' | 'info' }
+  { label: string; variant: 'success' | 'warning' | 'info' | 'danger' }
 > = {
   pending: { label: 'Pending', variant: 'warning' },
   active: { label: 'Active', variant: 'info' },
@@ -36,6 +37,14 @@ export default function StudentDetailsPage() {
   const [search, setSearch] = useState('')
   const [cleanupOpen, setCleanupOpen] = useState(false)
   const [cleanupBusy, setCleanupBusy] = useState(false)
+
+  // Disable / Enable state
+  const [actionBusyId, setActionBusyId] = useState<string | null>(null)
+  const [actionType, setActionType] = useState<'disable' | 'enable' | null>(null)
+
+  // Delete modal state
+  const [deletingStudent, setDeletingStudent] = useState<(User & { id: string }) | null>(null)
+  const [deleteStudentBusy, setDeleteStudentBusy] = useState(false)
 
   function loadData() {
     setFetchError(false)
@@ -61,31 +70,69 @@ export default function StudentDetailsPage() {
       Date.now() - s.createdAt.toMillis() > RETENTION_DAYS * 24 * 60 * 60 * 1000
   )
 
+  async function handleToggleDisable(student: User & { id: string }, newDisabledState: boolean) {
+    setActionBusyId(student.id)
+    setActionType(newDisabledState ? 'disable' : 'enable')
+    try {
+      await setStudentDisabled(student.id, newDisabledState)
+      setStudents((current) =>
+        current?.map((s) =>
+          s.id === student.id
+            ? { ...s, disabled: newDisabledState }
+            : s
+        ) ?? null
+      )
+      toast.success(
+        newDisabledState
+          ? `${student.fullName}'s access has been disabled.`
+          : `${student.fullName}'s access has been enabled.`
+      )
+    } catch {
+      toast.error(
+        `Could not ${newDisabledState ? 'disable' : 'enable'} account. Please try again.`
+      )
+    } finally {
+      setActionBusyId(null)
+      setActionType(null)
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deletingStudent) return
+    setDeleteStudentBusy(true)
+    try {
+      const res = await purgeStudentData(deletingStudent.id, deletingStudent.email)
+      if (!res.success) {
+        throw new Error(res.error || 'Failed to purge student data')
+      }
+      setStudents((current) =>
+        current?.filter((s) => s.id !== deletingStudent.id) ?? null
+      )
+      toast.success(
+        `${deletingStudent.fullName} and all associated data were permanently deleted.`
+      )
+      setDeletingStudent(null)
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Could not delete student. Please try again.'
+      toast.error(message)
+    } finally {
+      setDeleteStudentBusy(false)
+    }
+  }
+
   async function runCleanup() {
     setCleanupBusy(true)
     try {
-      let deletedBookings = 0
       for (const student of staleStudents) {
-        const bookings = await queryCollection<Booking>(
-          'bookings',
-          'studentId',
-          '==',
-          student.id
-        )
-        for (const booking of bookings) {
-          await deleteDocument('bookings', booking.id)
-          deletedBookings++
-        }
-        await deleteDocument('users', student.id)
+        await purgeStudentData(student.id, student.email)
       }
-      setStudents(
-        (current) =>
-          current?.filter((s) => !staleStudents.some((x) => x.id === s.id)) ??
-          null
+      setStudents((current) =>
+        current?.filter((s) => !staleStudents.some((x) => x.id === s.id)) ?? null
       )
       setCleanupOpen(false)
       toast.success(
-        `Cleanup done — removed ${staleStudents.length} unverified student${staleStudents.length === 1 ? '' : 's'} and ${deletedBookings} booking${deletedBookings === 1 ? '' : 's'}.`
+        `Cleanup done — completely purged ${staleStudents.length} unverified student${staleStudents.length === 1 ? '' : 's'}.`
       )
     } catch {
       toast.error('Cleanup failed partway. Run it again to finish.')
@@ -166,7 +213,7 @@ export default function StudentDetailsPage() {
         </Card>
       ) : (
         <div className="mt-6 overflow-x-auto rounded-lab bg-lab-white shadow-sm">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="w-full min-w-[860px] text-left text-sm">
             <thead>
               <tr className="border-b border-blue-light text-gray-500">
                 <th className="px-4 py-3 font-medium">Name</th>
@@ -175,15 +222,17 @@ export default function StudentDetailsPage() {
                 <th className="px-4 py-3 font-medium">Status</th>
                 <th className="px-4 py-3 font-medium">Lab</th>
                 <th className="px-4 py-3 font-medium">Registered</th>
+                <th className="px-4 py-3 font-medium text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
               {visible.map((student) => {
                 const badge = statusBadge[student.status] ?? statusBadge.pending
+                const isBusy = actionBusyId === student.id
                 return (
                   <tr
                     key={student.id}
-                    className="border-b border-blue-light/60"
+                    className="border-b border-blue-light/60 transition-colors hover:bg-slate-50/50"
                   >
                     <td className="px-4 py-3 font-medium text-deep-blue">
                       {student.fullName}
@@ -191,7 +240,11 @@ export default function StudentDetailsPage() {
                     <td className="px-4 py-3 text-gray-600">{student.email}</td>
                     <td className="px-4 py-3 text-gray-600">{student.phone}</td>
                     <td className="px-4 py-3">
-                      <Badge variant={badge.variant}>{badge.label}</Badge>
+                      {student.disabled ? (
+                        <Badge variant="danger">Disabled</Badge>
+                      ) : (
+                        <Badge variant={badge.variant}>{badge.label}</Badge>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">
                       {student.enrolledLabId
@@ -201,6 +254,41 @@ export default function StudentDetailsPage() {
                     <td className="px-4 py-3 text-gray-500">
                       {formatDate(student.createdAt.toDate())}
                     </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {student.disabled ? (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="border-green-300 text-green-700 hover:bg-green-50"
+                            onClick={() => handleToggleDisable(student, false)}
+                            disabled={isBusy || deleteStudentBusy}
+                            loading={isBusy && actionType === 'enable'}
+                          >
+                            Enable
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            className="border-amber-300 text-amber-700 hover:bg-amber-50"
+                            onClick={() => handleToggleDisable(student, true)}
+                            disabled={isBusy || deleteStudentBusy}
+                            loading={isBusy && actionType === 'disable'}
+                          >
+                            Disable
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="danger"
+                          onClick={() => setDeletingStudent(student)}
+                          disabled={isBusy || deleteStudentBusy}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
                   </tr>
                 )
               })}
@@ -209,7 +297,65 @@ export default function StudentDetailsPage() {
         </div>
       )}
 
-      {/* Cleanup confirmation */}
+      {/* Delete confirmation modal */}
+      {deletingStudent && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-blue/60 px-4">
+          <Card className="w-full max-w-md text-left">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-100 text-xl">
+                ⚠️
+              </span>
+              <div>
+                <h3 className="text-lg font-bold text-deep-blue">
+                  Delete Student Account?
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Permanent removal across all services
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 rounded-lab bg-red-50 p-3 text-xs leading-relaxed text-seat-reserved">
+              Are you sure you want to permanently delete{' '}
+              <strong className="font-bold">{deletingStudent.fullName}</strong> ({deletingStudent.email})?
+              This action cannot be undone.
+            </div>
+
+            <p className="mt-3 text-xs font-semibold text-gray-600">
+              This will completely purge:
+            </p>
+            <ul className="mt-1 space-y-1 text-xs text-gray-500 list-disc list-inside">
+              <li>Firebase Auth user credentials and login account</li>
+              <li>Student profile and database records</li>
+              <li>Lab enrollments and seat reservations (freed for other students)</li>
+              <li>All booking and payment transaction records</li>
+              <li>Waiting list registrations</li>
+              <li>Level test results and speaking audio recordings</li>
+              <li>In-class quiz submissions and marks</li>
+              <li>Attendance tracking Day 1–16</li>
+            </ul>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                variant="ghost"
+                onClick={() => setDeletingStudent(null)}
+                disabled={deleteStudentBusy}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                loading={deleteStudentBusy}
+                onClick={handleConfirmDelete}
+              >
+                Permanently Delete
+              </Button>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Stale unverified cleanup confirmation */}
       {cleanupOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-blue/60 px-4">
           <Card className="w-full max-w-sm text-center">
@@ -220,8 +366,8 @@ export default function StudentDetailsPage() {
             </h3>
             <p className="mt-2 text-sm text-gray-500">
               This removes students who registered more than {RETENTION_DAYS}{' '}
-              days ago but never verified their email, along with any bookings
-              they made. This cannot be undone.
+              days ago but never verified their email, along with all associated
+              records. This cannot be undone.
             </p>
             <div className="mt-5 flex justify-center gap-3">
               <Button

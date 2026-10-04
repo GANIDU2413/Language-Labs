@@ -21,6 +21,7 @@ import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
 import { toast } from '@/hooks/useToast'
+import { formatName } from '@/lib/utils'
 import type { MentorProfile } from '@/types'
 
 // ---------------------------------------------------------------------------
@@ -118,8 +119,8 @@ export default function AdminProfilePage() {
       }
 
       const mentor: MentorProfile = {
-        firstName: data.firstName.trim(),
-        lastName: data.lastName.trim(),
+        firstName: formatName(data.firstName),
+        lastName: formatName(data.lastName),
         ...(url ? { photoUrl: url } : {}),
         introduction: data.introduction.trim(),
         qualifications: data.qualifications

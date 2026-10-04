@@ -1,14 +1,15 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { signInWithEmailAndPassword } from 'firebase/auth'
 import { doc, getDoc } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
+import { queryCollection } from '@/lib/firestore'
 import { setAuthCookie } from '@/hooks/useAuth'
 import { useToast } from '@/hooks/useToast'
 import { friendlyFirebaseError, getWhatsAppLink } from '@/lib/utils'
@@ -16,7 +17,8 @@ import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
-import type { User } from '@/types'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import type { Booking, User } from '@/types'
 
 const loginSchema = z.object({
   email: z.email('Enter a valid email address'),
@@ -25,8 +27,10 @@ const loginSchema = z.object({
 
 type LoginForm = z.infer<typeof loginSchema>
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectParam = searchParams.get('redirect')
   const toast = useToast()
   const [serverError, setServerError] = useState('')
   const [pendingPayment, setPendingPayment] = useState(false)
@@ -34,6 +38,12 @@ export default function LoginPage() {
   const [showForgotHelp, setShowForgotHelp] = useState(false)
 
   const whatsappNumber = process.env.NEXT_PUBLIC_WHATSAPP_NUMBER
+
+  const storedRedirect =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('ll_intended_payment')
+      : null
+  const targetRedirect = redirectParam || storedRedirect
 
   const {
     register,
@@ -57,6 +67,12 @@ export default function LoginPage() {
         return
       }
       const user = snap.data() as User
+      if (user.disabled) {
+        await auth.signOut()
+        setServerError('Your account has been disabled. Please contact the administrator for assistance.')
+        toast.error('Your account has been disabled. Please contact the administrator.')
+        return
+      }
       setAuthCookie(user)
 
       if (user.role === 'admin') {
@@ -65,15 +81,47 @@ export default function LoginPage() {
       }
 
       if (!user.emailVerified) {
-        router.push(`/verify-otp?email=${encodeURIComponent(user.email)}`)
+        const verifyUrl = targetRedirect
+          ? `/verify-otp?email=${encodeURIComponent(user.email)}&redirect=${encodeURIComponent(targetRedirect)}`
+          : `/verify-otp?email=${encodeURIComponent(user.email)}`
+        router.push(verifyUrl)
+        return
+      }
+
+      // If user had an intended destination (e.g. payment page), go directly there!
+      if (targetRedirect && targetRedirect.startsWith('/')) {
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('ll_intended_payment')
+        }
+        router.push(targetRedirect)
         return
       }
 
       if (user.dashboardUnlocked) {
         router.push('/dashboard')
-      } else {
-        setPendingPayment(true)
+        return
       }
+
+      // If not yet unlocked, check if they have a pending booking to direct them to its payment page
+      try {
+        const userBookings = await queryCollection<Booking>(
+          'bookings',
+          'studentId',
+          '==',
+          cred.user.uid
+        )
+        const pendingBooking = userBookings.find((b) => b.paymentStatus === 'pending')
+        if (pendingBooking) {
+          router.push(
+            `/available-labs/${pendingBooking.labId}/payment?desk=${pendingBooking.seatNumber}`
+          )
+          return
+        }
+      } catch {
+        // Fallback to showing notice
+      }
+
+      setPendingPayment(true)
     } catch (err) {
       const message = friendlyFirebaseError(err)
       setServerError(message)
@@ -203,12 +251,24 @@ export default function LoginPage() {
       <p className="mt-6 text-center text-sm text-gray-500">
         New here?{' '}
         <Link
-          href="/register"
+          href={
+            targetRedirect
+              ? `/register?redirect=${encodeURIComponent(targetRedirect)}`
+              : '/register'
+          }
           className="font-semibold text-electric-blue hover:underline"
         >
           Take the English test first
         </Link>
       </p>
     </Card>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner size="lg" fullPage />}>
+      <LoginContent />
+    </Suspense>
   )
 }

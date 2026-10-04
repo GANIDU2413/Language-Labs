@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import { AnimatePresence, motion } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -128,16 +127,16 @@ function QuestionCard({ question, selected, onSelect }: QuestionCardProps) {
   return (
     <Card className="mt-6">
       {/* Image display */}
-      <div className="relative aspect-video overflow-hidden rounded-lab bg-blue-light">
+      <div className="relative flex w-full items-center justify-center overflow-hidden rounded-lab border border-blue-light/60 bg-blue-light/30 p-2 sm:p-3">
         {!imageLoaded && !imageError && (
-          <span className="absolute inset-0 flex flex-col items-center justify-center gap-2">
+          <div className="flex h-56 w-full items-center justify-center gap-2">
             <LoadingSpinner size="md" />
             <span className="text-xs text-gray-500">Loading picture…</span>
-          </span>
+          </div>
         )}
 
         {imageError ? (
-          <div className="flex h-full flex-col items-center justify-center p-4 text-center">
+          <div className="flex h-56 w-full flex-col items-center justify-center p-4 text-center">
             <span className="text-2xl">🖼️</span>
             <p className="mt-1 text-sm font-medium text-seat-reserved">
               Image failed to load
@@ -151,15 +150,13 @@ function QuestionCard({ question, selected, onSelect }: QuestionCardProps) {
             </button>
           </div>
         ) : (
-          <Image
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
             key={`${imageSrc}-${imageAttempt}`}
             src={imageSrc}
             alt={question.question}
-            fill
-            unoptimized={isBlobImage}
-            sizes="(max-width: 672px) 100vw, 672px"
-            className={`object-cover transition-opacity duration-300 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
+            className={`h-auto max-h-[500px] w-auto max-w-full rounded-lab object-contain shadow-xs transition-opacity duration-300 ${
+              imageLoaded ? 'block opacity-100' : 'hidden opacity-0'
             }`}
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
@@ -295,6 +292,19 @@ export default function ListeningSection({
           transition={{ duration: 0.3 }}
           className="h-full rounded-full bg-electric-blue"
         />
+      </div>
+
+      {/* Instructional notice */}
+      <div className="mt-5 flex items-start gap-3 rounded-lab border border-electric-blue/30 bg-blue-light/70 p-3.5 sm:p-4 text-left shadow-xs">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-electric-blue text-sm text-lab-white shadow-xs">
+          💡
+        </span>
+        <div className="text-xs sm:text-sm leading-relaxed text-deep-blue">
+          <p className="font-semibold text-deep-blue">Instructions</p>
+          <p className="text-gray-700">
+            For this test you need to listen to this record and watch the image carefully to answer the question.
+          </p>
+        </div>
       </div>
 
       <AnimatePresence mode="wait">

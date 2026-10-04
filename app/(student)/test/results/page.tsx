@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { toast } from '@/hooks/useToast'
 import type { TestResult } from '@/types'
 
 const levelBands = [
@@ -97,20 +98,28 @@ export default function TestResultsPage() {
   const band = getLevelBand(combined)
   const strengths = sections.filter((s) => s.score >= 70)
   const improvements = sections.filter((s) => s.score < 70)
+  const [downloading, setDownloading] = useState(false)
 
-  function downloadPdf() {
+  async function downloadPdf() {
     if (!result) return
-    generateTestReportPdf({
-      studentName: user?.fullName ?? 'Language Labs Student',
-      date: formatDate(result.createdAt.toDate()),
-      readingScore: result.readingScore,
-      vocabularyScore: result.vocabularyScore,
-      listeningScore: result.listeningScore,
-      levelLabel: band.label,
-      strengths: strengths.map((s) => `${s.name} — ${s.score}%`),
-      improvements: improvements.map((s) => `${s.name} — ${s.score}%`),
-      recommendation: band.recommendation,
-    })
+    setDownloading(true)
+    try {
+      await generateTestReportPdf({
+        studentName: user?.fullName ?? 'LANGUAGE LABS Student',
+        date: formatDate(result.createdAt.toDate()),
+        readingScore: result.readingScore,
+        vocabularyScore: result.vocabularyScore,
+        listeningScore: result.listeningScore,
+        levelLabel: band.label,
+        strengths: strengths.map((s) => `${s.name} — ${s.score}%`),
+        improvements: improvements.map((s) => `${s.name} — ${s.score}%`),
+        recommendation: band.recommendation,
+      })
+    } catch {
+      toast.error('Could not download test report PDF. Please try again.')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   return (
@@ -122,7 +131,7 @@ export default function TestResultsPage() {
         className="mx-auto max-w-3xl"
       >
         <h1 className="text-center text-3xl font-bold text-deep-blue">
-          Your Lab Report is Ready! 🧪
+          Your Lab Report is Ready!
         </h1>
         <p className="mt-2 text-center text-gray-500">
           Here&apos;s what we discovered about your English
@@ -217,7 +226,12 @@ export default function TestResultsPage() {
 
         {/* Actions */}
         <div className="mt-8 flex flex-col justify-center gap-4 sm:flex-row">
-          <Button variant="secondary" size="lg" onClick={downloadPdf}>
+          <Button
+            variant="secondary"
+            size="lg"
+            onClick={downloadPdf}
+            loading={downloading}
+          >
             Download My Lab Report
           </Button>
           <Link href="/available-labs" className="block">

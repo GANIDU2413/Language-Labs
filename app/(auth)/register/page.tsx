@@ -1,20 +1,21 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { createUserWithEmailAndPassword } from 'firebase/auth'
 import { doc, setDoc, Timestamp } from 'firebase/firestore'
 import { auth, db } from '@/lib/firebase'
-import { friendlyFirebaseError } from '@/lib/utils'
+import { formatFullName, friendlyFirebaseError } from '@/lib/utils'
 import { useToast } from '@/hooks/useToast'
 import Logo from '@/components/layout/Logo'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import Input from '@/components/ui/Input'
+import LoadingSpinner from '@/components/ui/LoadingSpinner'
 
 const registerSchema = z
   .object({
@@ -37,10 +38,18 @@ const registerSchema = z
 
 type RegisterForm = z.infer<typeof registerSchema>
 
-export default function RegisterPage() {
+function RegisterContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const redirectParam = searchParams.get('redirect')
   const toast = useToast()
   const [serverError, setServerError] = useState('')
+
+  const storedRedirect =
+    typeof window !== 'undefined'
+      ? sessionStorage.getItem('ll_intended_payment')
+      : null
+  const targetRedirect = redirectParam || storedRedirect
   const {
     register,
     handleSubmit,
@@ -51,6 +60,7 @@ export default function RegisterPage() {
     setServerError('')
     try {
       const email = data.email.toLowerCase()
+      const formatted = formatFullName(data.firstName, data.lastName)
       const cred = await createUserWithEmailAndPassword(
         auth,
         email,
@@ -59,9 +69,9 @@ export default function RegisterPage() {
 
       await setDoc(doc(db, 'users', cred.user.uid), {
         uid: cred.user.uid,
-        firstName: data.firstName.trim(),
-        lastName: data.lastName.trim(),
-        fullName: `${data.firstName.trim()} ${data.lastName.trim()}`,
+        firstName: formatted.firstName,
+        lastName: formatted.lastName,
+        fullName: formatted.fullName,
         email,
         phone: data.phone,
         role: 'student',
@@ -74,7 +84,7 @@ export default function RegisterPage() {
       const otpRes = await fetch('/api/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, firstName: data.firstName.trim() }),
+        body: JSON.stringify({ email, firstName: formatted.firstName }),
       })
 
       if (!otpRes.ok) {
@@ -83,7 +93,10 @@ export default function RegisterPage() {
         toast.error(msg)
       }
 
-      router.push(`/verify-otp?email=${encodeURIComponent(email)}`)
+      const verifyUrl = targetRedirect
+        ? `/verify-otp?email=${encodeURIComponent(email)}&redirect=${encodeURIComponent(targetRedirect)}`
+        : `/verify-otp?email=${encodeURIComponent(email)}`
+      router.push(verifyUrl)
     } catch (err) {
       const message = friendlyFirebaseError(err)
       setServerError(message)
@@ -183,12 +196,24 @@ export default function RegisterPage() {
       <p className="mt-6 text-center text-sm text-gray-500">
         Already have an account?{' '}
         <Link
-          href="/login"
+          href={
+            targetRedirect
+              ? `/login?redirect=${encodeURIComponent(targetRedirect)}`
+              : '/login'
+          }
           className="font-semibold text-electric-blue hover:underline"
         >
           Login
         </Link>
       </p>
     </Card>
+  )
+}
+
+export default function RegisterPage() {
+  return (
+    <Suspense fallback={<LoadingSpinner size="lg" fullPage />}>
+      <RegisterContent />
+    </Suspense>
   )
 }

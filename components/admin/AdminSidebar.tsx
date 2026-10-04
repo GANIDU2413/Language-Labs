@@ -21,6 +21,7 @@ const navItems = [
   { href: '/admin/speaking-review', icon: '🎙️', label: 'Review Speaking Tests' },
   { href: '/admin/inclass-test', icon: '⏱️', label: 'In-Class Test' },
   { href: '/admin/waiting-list', icon: '⏳', label: 'Waiting List' },
+  { href: '/admin/suggestions', icon: '💡', label: 'Suggestions' },
   { href: '/admin/profile', icon: '🧑‍🔬', label: 'Mentor Profile' },
   { href: '/admin/settings', icon: '⚙️', label: 'Site Settings' },
 ]
@@ -30,6 +31,7 @@ export default function AdminSidebar() {
   const router = useRouter()
   const { user } = useAuth()
   const [unreviewedCount, setUnreviewedCount] = useState(0)
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0)
 
   // Live count of speaking tests waiting for review
   useEffect(() => {
@@ -38,6 +40,16 @@ export default function AdminSidebar() {
       where('reviewedByAdmin', '==', false)
     )
     const unsubscribe = onSnapshot(q, (snap) => setUnreviewedCount(snap.size))
+    return unsubscribe
+  }, [])
+
+  // Live count of student payments waiting for review/confirmation
+  useEffect(() => {
+    const q = query(
+      collection(db, 'bookings'),
+      where('paymentStatus', '==', 'pending')
+    )
+    const unsubscribe = onSnapshot(q, (snap) => setPendingPaymentsCount(snap.size))
     return unsubscribe
   }, [])
 
@@ -53,6 +65,12 @@ export default function AdminSidebar() {
   const reviewBadge = unreviewedCount > 0 && (
     <span className="ml-auto rounded-full bg-seat-reserved px-2 py-0.5 text-xs font-bold text-lab-white">
       {unreviewedCount}
+    </span>
+  )
+
+  const paymentsBadge = pendingPaymentsCount > 0 && (
+    <span className="ml-auto rounded-full bg-seat-reserved px-2 py-0.5 text-xs font-bold text-lab-white">
+      {pendingPaymentsCount}
     </span>
   )
 
@@ -94,6 +112,7 @@ export default function AdminSidebar() {
                   <span>{item.icon}</span>
                   <span className="truncate">{item.label}</span>
                   {item.href === '/admin/speaking-review' && reviewBadge}
+                  {item.href === '/admin/labs/not-started' && paymentsBadge}
                 </Link>
               </li>
             ))}
@@ -128,6 +147,12 @@ export default function AdminSidebar() {
                     unreviewedCount > 0 && (
                       <span className="absolute right-1 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-seat-reserved text-[10px] font-bold text-lab-white">
                         {unreviewedCount}
+                      </span>
+                    )}
+                  {item.href === '/admin/labs/not-started' &&
+                    pendingPaymentsCount > 0 && (
+                      <span className="absolute right-1 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-seat-reserved text-[10px] font-bold text-lab-white">
+                        {pendingPaymentsCount}
                       </span>
                     )}
                 </span>

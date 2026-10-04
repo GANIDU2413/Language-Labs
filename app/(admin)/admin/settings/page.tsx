@@ -34,14 +34,6 @@ const aboutSchema = z.object({
   missionDescription: z.string().min(10, 'Mission description is required'),
   storyTitle: z.string().min(2, 'Story title is required'),
   storyDescription: z.string().min(10, 'Story description is required'),
-  principle1Title: z.string().min(2, 'Title required'),
-  principle1Desc: z.string().min(5, 'Description required'),
-  principle2Title: z.string().min(2, 'Title required'),
-  principle2Desc: z.string().min(5, 'Description required'),
-  principle3Title: z.string().min(2, 'Title required'),
-  principle3Desc: z.string().min(5, 'Description required'),
-  principle4Title: z.string().min(2, 'Title required'),
-  principle4Desc: z.string().min(5, 'Description required'),
 })
 type AboutForm = z.infer<typeof aboutSchema>
 
@@ -219,7 +211,7 @@ export default function AdminSettingsPage() {
               About Us Page Content Editor
             </h2>
             <p className="mt-1 text-xs text-gray-500">
-              Customize the headline, mission, background story, and 4 core principles.
+              Customize the headline, mission, and background story.
               The hero image displayed on the right is sourced from{' '}
               <code className="rounded bg-gray-100 px-1 py-0.5 text-deep-blue">
                 /images/About-us.png
@@ -309,79 +301,6 @@ export default function AdminSettingsPage() {
                     rows={4}
                     className="w-full rounded-lab border border-gray-300 p-3 text-sm outline-none transition focus:border-electric-blue focus:ring-2 focus:ring-electric-blue/20"
                     {...aboutForm.register('storyDescription')}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Core Principles */}
-            <div className="border-t border-gray-100 pt-6">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-electric-blue">
-                4. The 4 Core Principles
-              </h3>
-
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="rounded-lab border border-blue-light/70 bg-blue-light/10 p-4">
-                  <p className="text-xs font-bold text-gray-500">Principle 1</p>
-                  <Input
-                    label="Title"
-                    name="principle1Title"
-                    register={aboutForm.register('principle1Title')}
-                    className="mt-1"
-                  />
-                  <Input
-                    label="Description"
-                    name="principle1Desc"
-                    register={aboutForm.register('principle1Desc')}
-                    className="mt-2"
-                  />
-                </div>
-
-                <div className="rounded-lab border border-blue-light/70 bg-blue-light/10 p-4">
-                  <p className="text-xs font-bold text-gray-500">Principle 2</p>
-                  <Input
-                    label="Title"
-                    name="principle2Title"
-                    register={aboutForm.register('principle2Title')}
-                    className="mt-1"
-                  />
-                  <Input
-                    label="Description"
-                    name="principle2Desc"
-                    register={aboutForm.register('principle2Desc')}
-                    className="mt-2"
-                  />
-                </div>
-
-                <div className="rounded-lab border border-blue-light/70 bg-blue-light/10 p-4">
-                  <p className="text-xs font-bold text-gray-500">Principle 3</p>
-                  <Input
-                    label="Title"
-                    name="principle3Title"
-                    register={aboutForm.register('principle3Title')}
-                    className="mt-1"
-                  />
-                  <Input
-                    label="Description"
-                    name="principle3Desc"
-                    register={aboutForm.register('principle3Desc')}
-                    className="mt-2"
-                  />
-                </div>
-
-                <div className="rounded-lab border border-blue-light/70 bg-blue-light/10 p-4">
-                  <p className="text-xs font-bold text-gray-500">Principle 4</p>
-                  <Input
-                    label="Title"
-                    name="principle4Title"
-                    register={aboutForm.register('principle4Title')}
-                    className="mt-1"
-                  />
-                  <Input
-                    label="Description"
-                    name="principle4Desc"
-                    register={aboutForm.register('principle4Desc')}
-                    className="mt-2"
                   />
                 </div>
               </div>

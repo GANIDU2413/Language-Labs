@@ -11,6 +11,7 @@ import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
 import LoadingSpinner from '@/components/ui/LoadingSpinner'
+import { useAuth } from '@/hooks/useAuth'
 import type { Lab } from '@/types'
 
 const courseTopics = [
@@ -29,12 +30,26 @@ const URGENCY_MINUTES = 15
 export default function LabDetailPage() {
   const { labId } = useParams<{ labId: string }>()
   const router = useRouter()
+  const { firebaseUser } = useAuth()
 
   const [lab, setLab] = useState<Lab | null>(null)
   const [notFound, setNotFound] = useState(false)
   const [selectedDesk, setSelectedDesk] = useState<number | null>(null)
   const [secondsLeft, setSecondsLeft] = useState(URGENCY_MINUTES * 60)
   const confirmRef = useRef<HTMLDivElement | null>(null)
+
+  const handleProceedToPayment = () => {
+    if (selectedDesk === null) return
+    const paymentUrl = `/available-labs/${labId}/payment?desk=${selectedDesk}`
+    if (typeof window !== 'undefined') {
+      sessionStorage.setItem('ll_intended_payment', paymentUrl)
+    }
+    if (!firebaseUser) {
+      router.push(`/login?redirect=${encodeURIComponent(paymentUrl)}`)
+    } else {
+      router.push(paymentUrl)
+    }
+  }
 
   // Live lab details (seats remaining counter updates in real time)
   useEffect(() => {
@@ -166,11 +181,7 @@ export default function LabDetailPage() {
                 <Button
                   size="lg"
                   className="mt-5"
-                  onClick={() =>
-                    router.push(
-                      `/available-labs/${labId}/payment?desk=${selectedDesk}`
-                    )
-                  }
+                  onClick={handleProceedToPayment}
                 >
                   Proceed to Payment →
                 </Button>

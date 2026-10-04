@@ -18,8 +18,21 @@ export interface TestReportData {
   recommendation: string
 }
 
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === 'undefined') {
+      return reject(new Error('Window not available'))
+    }
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => resolve(img)
+    img.onerror = (e) => reject(e)
+    img.src = src
+  })
+}
+
 /** Generate and download the branded level test lab report PDF */
-export function generateTestReportPdf(data: TestReportData): void {
+export async function generateTestReportPdf(data: TestReportData): Promise<void> {
   const doc = new jsPDF() // A4 portrait, mm units
   const pageWidth = doc.internal.pageSize.getWidth()
   const margin = 20
@@ -28,13 +41,26 @@ export function generateTestReportPdf(data: TestReportData): void {
   // Header band
   doc.setFillColor(...DEEP_BLUE)
   doc.rect(0, 0, pageWidth, 42, 'F')
+
+  // Official logo & uppercase branding
+  let textX = margin
+  try {
+    const logoImg = await loadImage('/images/Logo1_no_bg.png')
+    const logoH = 22
+    const logoW = (logoImg.width / logoImg.height) * logoH
+    doc.addImage(logoImg, 'PNG', margin, 10, logoW, logoH)
+    textX = margin + logoW + 5
+  } catch (err) {
+    console.warn('Could not load logo for PDF:', err)
+  }
+
   doc.setTextColor(255, 255, 255)
   doc.setFont('helvetica', 'bold')
-  doc.setFontSize(22)
-  doc.text('Language Labs', margin, 20)
+  doc.setFontSize(20)
+  doc.text('LANGUAGE LABS', textX, 21)
   doc.setTextColor(...ELECTRIC_BLUE)
-  doc.setFontSize(13)
-  doc.text('Level Test — Lab Report', margin, 30)
+  doc.setFontSize(12)
+  doc.text('Level Test — Lab Report', textX, 30)
 
   // Student + date
   y = 54
@@ -136,7 +162,7 @@ export function generateTestReportPdf(data: TestReportData): void {
   doc.setFontSize(9)
   doc.setTextColor(...GRAY)
   doc.text(
-    'Language Labs — Learn English the scientific way',
+    'LANGUAGE LABS — Learn English the scientific way',
     pageWidth / 2,
     285,
     { align: 'center' }

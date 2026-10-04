@@ -43,8 +43,14 @@ function PaymentContent() {
 
   // Students must be logged in so the booking has an owner
   useEffect(() => {
-    if (!authLoading && !firebaseUser) router.push('/login')
-  }, [authLoading, firebaseUser, router])
+    if (!authLoading && !firebaseUser) {
+      const currentUrl = `/available-labs/${labId}/payment${deskParam ? `?desk=${deskParam}` : ''}`
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('ll_intended_payment', currentUrl)
+      }
+      router.push(`/login?redirect=${encodeURIComponent(currentUrl)}`)
+    }
+  }, [authLoading, firebaseUser, router, labId, deskParam])
 
   useEffect(() => {
     if (!labId) return
@@ -54,12 +60,21 @@ function PaymentContent() {
     ])
       .then(([labSnap, bankSnap]) => {
         if (labSnap.exists()) {
-          setLab({ id: labSnap.id, ...labSnap.data() } as Lab)
+          const labData = { id: labSnap.id, ...labSnap.data() } as Lab
+          setLab(labData)
+          if (firebaseUser && deskNumber) {
+            const mySeat = labData.seats?.find(
+              (s) => s.seatNumber === deskNumber && s.studentId === firebaseUser.uid
+            )
+            if (mySeat) {
+              setBooked(true)
+            }
+          }
         }
         if (bankSnap.exists()) setBank(bankSnap.data() as BankDetails)
       })
       .finally(() => setLoading(false))
-  }, [labId])
+  }, [labId, deskNumber, firebaseUser])
 
   if (authLoading || loading || !firebaseUser) {
     return <LoadingSpinner size="lg" fullPage />
@@ -94,31 +109,38 @@ function PaymentContent() {
       const bookingRef = doc(collection(db, 'bookings'))
       const labRef = doc(db, 'labs', lab.id)
 
-      // Transaction: claim the seat only if it's still available
+      // Transaction: claim the seat only if it's still available or already claimed by me
       await runTransaction(db, async (tx) => {
         const snap = await tx.get(labRef)
         if (!snap.exists()) throw new Error('lab-missing')
         const seats = [...((snap.data() as Lab).seats ?? [])]
         const index = seats.findIndex((s) => s.seatNumber === deskNumber)
-        if (index === -1 || seats[index].status !== 'available') {
+        const isAlreadyMine =
+          seats[index]?.studentId === firebaseUser!.uid &&
+          (seats[index]?.status === 'pending' || seats[index]?.status === 'confirmed')
+
+        if (index === -1 || (seats[index].status !== 'available' && !isAlreadyMine)) {
           throw new Error('seat-taken')
         }
-        seats[index] = {
-          ...seats[index],
-          status: 'pending',
-          studentId: firebaseUser!.uid,
-          bookingId: bookingRef.id,
+
+        if (!isAlreadyMine) {
+          seats[index] = {
+            ...seats[index],
+            status: 'pending',
+            studentId: firebaseUser!.uid,
+            bookingId: bookingRef.id,
+          }
+          tx.update(labRef, { seats })
+          tx.set(bookingRef, {
+            labId: lab.id,
+            studentId: firebaseUser!.uid,
+            studentName,
+            studentEmail,
+            seatNumber: deskNumber,
+            paymentStatus: 'pending',
+            createdAt: Timestamp.now(),
+          })
         }
-        tx.update(labRef, { seats })
-        tx.set(bookingRef, {
-          labId: lab.id,
-          studentId: firebaseUser!.uid,
-          studentName,
-          studentEmail,
-          seatNumber: deskNumber,
-          paymentStatus: 'pending',
-          createdAt: Timestamp.now(),
-        })
       })
 
       setBooked(true)

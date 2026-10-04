@@ -125,7 +125,7 @@ export default function AboutPage() {
       </section>
 
       {/* ------------------------------------------------ Story & Mission */}
-      <section className="bg-blue-light/30 py-16 sm:py-20">
+      <section className="bg-blue-light/30 py-16 sm:py-24">
         <div className="mx-auto max-w-6xl px-4">
           <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
             {/* Mission Card */}
@@ -157,83 +157,8 @@ export default function AboutPage() {
         </div>
       </section>
 
-      {/* ------------------------------------------------ Core Principles */}
-      <section className="py-16 sm:py-24">
-        <div className="mx-auto max-w-6xl px-4">
-          <div className="text-center">
-            <span className="text-xs font-bold uppercase tracking-widest text-electric-blue">
-              The Method
-            </span>
-            <h2 className="mt-2 text-3xl font-bold text-deep-blue sm:text-4xl">
-              Why Our Scientific Formula Works
-            </h2>
-            <p className="mx-auto mt-3 max-w-2xl text-gray-500">
-              Designed around behavioral psychology and speech rehearsal — not rote memorization.
-            </p>
-          </div>
-
-          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-            {/* Principle 1 */}
-            <div className="rounded-lab border border-blue-light bg-lab-white p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-md">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-light text-xl">
-                👥
-              </span>
-              <h3 className="mt-4 font-bold text-deep-blue">
-                {content.principle1Title || 'Strict 6-Seat Batches'}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                {content.principle1Desc ||
-                  'Only 6 students per session ensures you never hide in the back row.'}
-              </p>
-            </div>
-
-            {/* Principle 2 */}
-            <div className="rounded-lab border border-blue-light bg-lab-white p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-md">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-light text-xl">
-                🛡️
-              </span>
-              <h3 className="mt-4 font-bold text-deep-blue">
-                {content.principle2Title || 'Safe Space to Fail'}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                {content.principle2Desc ||
-                  'Errors are treated as essential experimental feedback, not embarrassment.'}
-              </p>
-            </div>
-
-            {/* Principle 3 */}
-            <div className="rounded-lab border border-blue-light bg-lab-white p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-md">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-light text-xl">
-                🧑‍🔬
-              </span>
-              <h3 className="mt-4 font-bold text-deep-blue">
-                {content.principle3Title || 'Real-Time Mentor Guidance'}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                {content.principle3Desc ||
-                  'Instant pronunciation, grammar, and vocabulary feedback in every experiment.'}
-              </p>
-            </div>
-
-            {/* Principle 4 */}
-            <div className="rounded-lab border border-blue-light bg-lab-white p-6 shadow-xs transition-all hover:-translate-y-1 hover:shadow-md">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-light text-xl">
-                📈
-              </span>
-              <h3 className="mt-4 font-bold text-deep-blue">
-                {content.principle4Title || 'Measurable Milestones'}
-              </h3>
-              <p className="mt-2 text-sm leading-relaxed text-gray-500">
-                {content.principle4Desc ||
-                  'Track your Day 1 to Day 16 mastery curve with certified milestone tests.'}
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
       {/* ------------------------------------------------ Final CTA */}
-      <section className="bg-deep-blue py-16 text-lab-white">
+      <section className="bg-deep-blue py-16 sm:py-24 text-lab-white">
         <div className="mx-auto max-w-4xl px-4 text-center">
           <h2 className="text-3xl font-extrabold sm:text-4xl">
             Ready to Take Your First Speaking Experiment?

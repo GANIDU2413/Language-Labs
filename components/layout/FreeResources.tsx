@@ -169,7 +169,7 @@ function ResourcesSkeleton() {
 
 export default function FreeResources() {
   return (
-    <section className="bg-blue-light/40">
+    <section id="free-resources" className="bg-blue-light/40 scroll-mt-20">
       <div className="mx-auto max-w-6xl px-4 py-20">
         <h2 className="text-center text-3xl font-bold text-deep-blue sm:text-4xl">
           Free Resources

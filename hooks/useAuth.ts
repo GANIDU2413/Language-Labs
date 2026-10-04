@@ -14,8 +14,12 @@ const AUTH_COOKIE = 'll-auth'
  * Firestore security rules.
  */
 export function setAuthCookie(
-  user: Pick<User, 'role' | 'dashboardUnlocked'>
+  user: Pick<User, 'role' | 'dashboardUnlocked'> & { disabled?: boolean }
 ): void {
+  if (user.disabled) {
+    clearAuthCookie()
+    return
+  }
   const value =
     user.role === 'admin'
       ? 'admin'
@@ -51,6 +55,14 @@ export function useAuth() {
         const snap = await getDoc(doc(db, 'users', fbUser.uid))
         if (snap.exists()) {
           const profile = snap.data() as User
+          if (profile.disabled) {
+            setUser(null)
+            setFirebaseUser(null)
+            clearAuthCookie()
+            await auth.signOut()
+            setLoading(false)
+            return
+          }
           setUser(profile)
           setAuthCookie(profile)
         } else {

@@ -75,6 +75,15 @@ service cloud.firestore {
       allow read, update, delete: if isAdmin();
     }
 
+    // ------------------------------------------------------------ suggestions
+    // Anyone may submit an anonymous suggestion; only admin may read and delete.
+
+    match /suggestions/{suggestionId} {
+      allow create: if true;
+      allow read, delete: if isAdmin();
+      allow update: if false;
+    }
+
     // ------------------------------------------------------------ testQuestions
 
     match /testQuestions/{docId} {

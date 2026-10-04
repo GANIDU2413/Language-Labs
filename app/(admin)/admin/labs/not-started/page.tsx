@@ -2,9 +2,19 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { doc, Timestamp, writeBatch } from 'firebase/firestore'
+import {
+  collection,
+  deleteField,
+  doc,
+  onSnapshot,
+  query,
+  Timestamp,
+  updateDoc,
+  where,
+  writeBatch,
+} from 'firebase/firestore'
 import { db } from '@/lib/firebase'
-import { getCollection, queryCollection } from '@/lib/firestore'
+import { removeStudentFromWaitingList } from '@/lib/firestore'
 import { formatDate } from '@/lib/utils'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -19,6 +29,24 @@ type DialogState = {
   lab: Lab
   action: 'confirm' | 'reject'
 } | null
+
+interface EditLabFormState {
+  id: string
+  name: string
+  duration: string
+  startDate: string
+  schedule: string
+  fee: string
+}
+
+function timestampToDateInput(ts?: Timestamp): string {
+  if (!ts) return ''
+  const date = ts.toDate()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 function confirmedEmailHtml(name: string, lab: Lab, loginUrl: string): string {
   return `
@@ -78,27 +106,138 @@ export default function NotStartedLabsPage() {
   const [startError, setStartError] = useState('')
   const [autoConfirmPending, setAutoConfirmPending] = useState(true)
 
+  const [editModal, setEditModal] = useState<EditLabFormState | null>(null)
+  const [editBusy, setEditBusy] = useState(false)
+  const [editErrors, setEditErrors] = useState<Record<string, string>>({})
+
+  function handleOpenEdit(lab: Lab) {
+    setEditErrors({})
+    setEditModal({
+      id: lab.id,
+      name: lab.name || '',
+      duration: lab.duration || '',
+      startDate: timestampToDateInput(lab.startDate),
+      schedule: lab.schedule || '',
+      fee: lab.fee !== undefined && lab.fee !== null ? String(lab.fee) : '',
+    })
+  }
+
+  async function handleUpdateLab(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editModal) return
+
+    const errors: Record<string, string> = {}
+    if (!editModal.name.trim()) {
+      errors.name = 'Lab name is required.'
+    } else if (editModal.name.trim().length < 2) {
+      errors.name = 'Lab name must be at least 2 characters.'
+    }
+
+    if (!editModal.duration.trim()) {
+      errors.duration = 'Time duration is required.'
+    }
+
+    if (!editModal.startDate) {
+      errors.startDate = 'Start date is required.'
+    } else if (Number.isNaN(Date.parse(editModal.startDate))) {
+      errors.startDate = 'Please enter a valid start date.'
+    }
+
+    if (!editModal.schedule.trim()) {
+      errors.schedule = 'Class schedule is required.'
+    }
+
+    let parsedFee: number | null = null
+    if (editModal.fee.trim() !== '') {
+      const num = Number(editModal.fee.trim())
+      if (Number.isNaN(num) || num <= 0) {
+        errors.fee = 'Fee must be a positive number.'
+      } else {
+        parsedFee = num
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setEditErrors(errors)
+      return
+    }
+
+    setEditBusy(true)
+    setEditErrors({})
+
+    try {
+      const [y, m, d] = editModal.startDate.split('-').map(Number)
+      const dateObj = new Date(y, m - 1, d, 12, 0, 0)
+      const newStartDate = Timestamp.fromDate(dateObj)
+
+      const updatePayload: Record<string, any> = {
+        name: editModal.name.trim(),
+        duration: editModal.duration.trim(),
+        startDate: newStartDate,
+        schedule: editModal.schedule.trim(),
+      }
+
+      if (parsedFee !== null) {
+        updatePayload.fee = parsedFee
+      } else {
+        updatePayload.fee = deleteField()
+      }
+
+      await updateDoc(doc(db, 'labs', editModal.id), updatePayload)
+
+      setLabs((current) =>
+        current?.map((lab) =>
+          lab.id === editModal.id
+            ? {
+                ...lab,
+                name: editModal.name.trim(),
+                duration: editModal.duration.trim(),
+                startDate: newStartDate,
+                schedule: editModal.schedule.trim(),
+                ...(parsedFee !== null ? { fee: parsedFee } : { fee: undefined }),
+              }
+            : lab
+        ) ?? null
+      )
+
+      toast.success('Lab details updated successfully! ✨')
+      setEditModal(null)
+    } catch (err) {
+      console.error('Failed to update lab:', err)
+      setEditErrors({ form: 'Could not update the lab. Please try again.' })
+      toast.error('Could not update the lab. Please try again.')
+    } finally {
+      setEditBusy(false)
+    }
+  }
+
   useEffect(() => {
-    Promise.all([
-      queryCollection<Lab>('labs', 'status', '==', 'notStarted'),
-      getCollection<Booking>('bookings'),
-    ])
-      .then(([notStarted, allBookings]) => {
-        setLabs(
-          notStarted.sort(
-            (a, b) => a.startDate.toMillis() - b.startDate.toMillis()
-          )
-        )
-        const grouped: Record<string, Booking[]> = {}
-        for (const booking of allBookings) {
-          ;(grouped[booking.labId] ??= []).push(booking)
-        }
-        for (const list of Object.values(grouped)) {
-          list.sort((a, b) => a.seatNumber - b.seatNumber)
-        }
-        setBookingsByLab(grouped)
-      })
-      .catch(() => setLabs([]))
+    const qLabs = query(collection(db, 'labs'), where('status', '==', 'notStarted'))
+    const unsubLabs = onSnapshot(
+      qLabs,
+      (snap) => {
+        const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Lab)
+        setLabs(list.sort((a, b) => a.startDate.toMillis() - b.startDate.toMillis()))
+      },
+      () => setLabs([])
+    )
+
+    const unsubBookings = onSnapshot(collection(db, 'bookings'), (snap) => {
+      const allBookings = snap.docs.map((d) => ({ id: d.id, ...d.data() }) as Booking)
+      const grouped: Record<string, Booking[]> = {}
+      for (const booking of allBookings) {
+        ;(grouped[booking.labId] ??= []).push(booking)
+      }
+      for (const list of Object.values(grouped)) {
+        list.sort((a, b) => a.seatNumber - b.seatNumber)
+      }
+      setBookingsByLab(grouped)
+    })
+
+    return () => {
+      unsubLabs()
+      unsubBookings()
+    }
   }, [])
 
   async function processDialog() {
@@ -131,6 +270,13 @@ export default function NotStartedLabsPage() {
           dashboardUnlocked: true,
           enrolledLabId: lab.id,
         })
+
+        // Automatically remove user from waiting list upon payment confirmation
+        await removeStudentFromWaitingList(
+          booking.studentEmail,
+          booking.studentId,
+          batch
+        )
       } else {
         batch.update(bookingRef, { paymentStatus: 'rejected' })
       }
@@ -217,6 +363,13 @@ export default function NotStartedLabsPage() {
             enrolledLabId: lab.id,
           })
 
+          // Automatically remove user from waiting list upon payment confirmation
+          await removeStudentFromWaitingList(
+            booking.studentEmail,
+            booking.studentId,
+            batch
+          )
+
           // Non-blocking confirmation email
           fetch('/api/send-email', {
             method: 'POST',
@@ -276,6 +429,11 @@ export default function NotStartedLabsPage() {
     lab.name.toLowerCase().includes(search.toLowerCase())
   )
 
+  const totalPendingPayments = (labs ?? []).reduce((sum, lab) => {
+    const bookings = bookingsByLab[lab.id] ?? []
+    return sum + bookings.filter((b) => b.paymentStatus === 'pending').length
+  }, 0)
+
   return (
     <div className="px-4 py-8 sm:px-8">
       <h1 className="text-2xl font-bold text-deep-blue">
@@ -284,6 +442,27 @@ export default function NotStartedLabsPage() {
       <p className="mt-1 text-sm text-gray-500">
         Verify payments and manage bookings before each lab begins.
       </p>
+
+      {/* Top alert banner for pending student payments */}
+      {totalPendingPayments > 0 && (
+        <div className="mt-6 flex flex-col gap-3 rounded-lab border-2 border-seat-reserved bg-red-50 p-4 sm:flex-row sm:items-center sm:justify-between shadow-sm">
+          <div className="flex items-center gap-3.5">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-seat-reserved text-lg font-bold text-lab-white">
+              {totalPendingPayments}
+            </span>
+            <div>
+              <p className="font-bold text-deep-blue">
+                {totalPendingPayments === 1
+                  ? '1 Student Payment Waiting for Verification'
+                  : `${totalPendingPayments} Student Payments Waiting for Verification`}
+              </p>
+              <p className="text-xs text-gray-600">
+                Students have submitted payment receipts. Verify bank transfers below to reserve desks and unlock their student dashboards.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="mt-6 max-w-sm">
         <Input
@@ -306,6 +485,9 @@ export default function NotStartedLabsPage() {
             const confirmedCount = bookings.filter(
               (b) => b.paymentStatus === 'confirmed'
             ).length
+            const pendingCount = bookings.filter(
+              (b) => b.paymentStatus === 'pending'
+            ).length
             const registeredCount = bookings.filter(
               (b) => b.paymentStatus !== 'rejected'
             ).length
@@ -314,21 +496,45 @@ export default function NotStartedLabsPage() {
               (lab.seats ?? []).some((s) => s.status !== 'available')
 
             return (
-              <Card key={lab.id}>
+              <Card
+                key={lab.id}
+                className={
+                  pendingCount > 0
+                    ? 'border-2 border-seat-reserved ring-1 ring-seat-reserved/20'
+                    : ''
+                }
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
-                    <h2 className="text-lg font-bold text-deep-blue">
-                      {lab.name}
-                    </h2>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="text-lg font-bold text-deep-blue">
+                        {lab.name}
+                      </h2>
+                      {pendingCount > 0 && (
+                        <span className="rounded-full bg-seat-reserved px-2.5 py-0.5 text-xs font-bold text-lab-white shadow-sm">
+                          {pendingCount} payment{pendingCount === 1 ? '' : 's'} to verify
+                        </span>
+                      )}
+                    </div>
                     <p className="mt-1 text-sm text-gray-600">
                       📅 Starts {formatDate(lab.startDate.toDate())} · 🕕{' '}
                       {lab.schedule}
+                      {lab.duration ? ` · ⏱️ ${lab.duration}` : ''}
+                      {lab.fee ? ` · 💳 Rs. ${lab.fee.toLocaleString()}` : ''}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge variant={confirmedCount === 6 ? 'success' : 'info'}>
                       {confirmedCount} / 6 seats confirmed
                     </Badge>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => handleOpenEdit(lab)}
+                      className="border border-gray-300 hover:border-electric-blue hover:text-electric-blue font-medium"
+                    >
+                      ✏️ Modify
+                    </Button>
                     {canStartLab && (
                       <Button
                         size="sm"
@@ -351,14 +557,23 @@ export default function NotStartedLabsPage() {
                     {bookings.map((booking) => (
                       <li
                         key={booking.id}
-                        className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between"
+                        className={`flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between ${
+                          booking.paymentStatus === 'pending'
+                            ? 'rounded-lab bg-red-50/60 p-3 -mx-3 my-1 border border-seat-reserved/20'
+                            : ''
+                        }`}
                       >
                         <div className="min-w-0">
-                          <p className="font-semibold text-deep-blue">
+                          <p className="font-semibold text-deep-blue flex items-center gap-2">
                             {booking.studentName}
-                            <span className="ml-2 rounded-full bg-blue-light px-2 py-0.5 text-xs font-bold text-electric-blue">
+                            <span className="rounded-full bg-blue-light px-2 py-0.5 text-xs font-bold text-electric-blue">
                               Desk {booking.seatNumber}
                             </span>
+                            {booking.paymentStatus === 'pending' && (
+                              <span className="rounded-full bg-seat-reserved px-2 py-0.5 text-[10px] font-bold text-lab-white uppercase tracking-wider">
+                                Action Required
+                              </span>
+                            )}
                           </p>
                           <p className="truncate text-sm text-gray-500">
                             {booking.studentEmail}
@@ -523,6 +738,124 @@ export default function NotStartedLabsPage() {
                 Yes, Start Lab 🚀
               </Button>
             </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Modify Lab Modal */}
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-deep-blue/60 p-4">
+          <Card className="w-full max-w-lg text-left max-h-[90vh] overflow-y-auto shadow-2xl">
+            <div className="flex items-center justify-between border-b border-blue-light pb-3">
+              <div>
+                <h3 className="text-xl font-bold text-deep-blue flex items-center gap-2">
+                  <span>✏️</span> Modify Lab Details
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Update session schedule, duration, dates, or fee for this lab.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditModal(null)}
+                disabled={editBusy}
+                className="rounded-full p-1 text-gray-400 hover:bg-blue-light hover:text-deep-blue transition-colors"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateLab} className="mt-4 flex flex-col gap-4" noValidate>
+              <Input
+                label="Lab Name"
+                name="name"
+                value={editModal.name}
+                onChange={(e) => {
+                  setEditModal({ ...editModal, name: e.target.value })
+                  if (editErrors.name) setEditErrors((prev) => ({ ...prev, name: '' }))
+                }}
+                placeholder="e.g. LanguageLab1"
+                required
+                error={editErrors.name}
+              />
+
+              <Input
+                label="Time Duration"
+                name="duration"
+                value={editModal.duration}
+                onChange={(e) => {
+                  setEditModal({ ...editModal, duration: e.target.value })
+                  if (editErrors.duration) setEditErrors((prev) => ({ ...prev, duration: '' }))
+                }}
+                placeholder="e.g. 8 Weeks — Twice a Week — 16 Sessions"
+                required
+                error={editErrors.duration}
+              />
+
+              <Input
+                label="Start Date"
+                name="startDate"
+                type="date"
+                value={editModal.startDate}
+                onChange={(e) => {
+                  setEditModal({ ...editModal, startDate: e.target.value })
+                  if (editErrors.startDate) setEditErrors((prev) => ({ ...prev, startDate: '' }))
+                }}
+                required
+                error={editErrors.startDate}
+              />
+
+              <Input
+                label="Class Schedule"
+                name="schedule"
+                value={editModal.schedule}
+                onChange={(e) => {
+                  setEditModal({ ...editModal, schedule: e.target.value })
+                  if (editErrors.schedule) setEditErrors((prev) => ({ ...prev, schedule: '' }))
+                }}
+                placeholder="e.g. Tuesdays and Thursdays, 6:00 PM — 7:30 PM"
+                required
+                error={editErrors.schedule}
+              />
+
+              <Input
+                label="Lab Fee (Rs.)"
+                name="fee"
+                type="number"
+                value={editModal.fee}
+                onChange={(e) => {
+                  setEditModal({ ...editModal, fee: e.target.value })
+                  if (editErrors.fee) setEditErrors((prev) => ({ ...prev, fee: '' }))
+                }}
+                placeholder="e.g. 15000"
+                error={editErrors.fee}
+              />
+
+              {editErrors.form && (
+                <p className="rounded-lab bg-red-50 px-4 py-3 text-sm text-seat-reserved">
+                  {editErrors.form}
+                </p>
+              )}
+
+              <div className="mt-4 flex items-center justify-end gap-3 border-t border-blue-light pt-4">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  onClick={() => setEditModal(null)}
+                  disabled={editBusy}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  loading={editBusy}
+                >
+                  Update
+                </Button>
+              </div>
+            </form>
           </Card>
         </div>
       )}

@@ -35,9 +35,13 @@ export default function StudentLayout({
 
   useEffect(() => {
     if (isTestFlow || loading) return
-    if (!firebaseUser) router.push('/login')
-    else if (isAdmin) router.push('/admin')
-  }, [isTestFlow, loading, firebaseUser, isAdmin, router])
+    if (!firebaseUser || user?.disabled) {
+      if (user?.disabled) signOut(auth).catch(() => {})
+      router.push('/login')
+    } else if (isAdmin) {
+      router.push('/admin')
+    }
+  }, [isTestFlow, loading, firebaseUser, user?.disabled, isAdmin, router])
 
   if (isTestFlow) {
     return <main className="min-h-screen">{children}</main>

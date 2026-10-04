@@ -12,18 +12,6 @@ export const defaultAboutContent: AboutContent = {
   storyTitle: 'Why We Started Language Labs',
   storyDescription:
     'Traditional English classes fail students because one teacher lectures to dozens of silent students. We asked: what if learning English worked like a science laboratory? A small group of 6, hands-on experiments, immediate feedback, and rapid iterations. That hypothesis became Language Labs.',
-  principle1Title: 'Strict 6-Seat Batches',
-  principle1Desc:
-    'Only 6 students per session ensures you never hide in the back row and get maximum personalized speaking time.',
-  principle2Title: 'Safe Space to Fail',
-  principle2Desc:
-    'A supportive environment where errors are treated as valuable learning data, not sources of embarrassment.',
-  principle3Title: 'Real-Time Mentor Guidance',
-  principle3Desc:
-    'Instant pronunciation, grammar, and vocabulary guidance from your dedicated lab mentor every session.',
-  principle4Title: 'Measurable Milestones',
-  principle4Desc:
-    '16 structured sessions tracked Day 1 through Day 16 with level tests and verifiable certificates of completion.',
 }
 
 export const defaultContactContent: ContactContent = {

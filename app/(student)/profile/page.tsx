@@ -12,7 +12,7 @@ import {
 } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { getDocument, queryCollection, updateDocument } from '@/lib/firestore'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatFullName } from '@/lib/utils'
 import { useAuth } from '@/hooks/useAuth'
 import Badge from '@/components/ui/Badge'
 import Button from '@/components/ui/Button'
@@ -131,22 +131,40 @@ export default function StudentProfilePage() {
     }
 
     try {
-      const firstName = data.firstName.trim()
-      const lastName = data.lastName.trim()
+      const formatted = formatFullName(data.firstName, data.lastName)
       await updateDocument<User>('users', firebaseUser.uid, {
-        firstName,
-        lastName,
-        fullName: `${firstName} ${lastName}`,
+        firstName: formatted.firstName,
+        lastName: formatted.lastName,
+        fullName: formatted.fullName,
         phone: data.phone,
       })
+
+      // Sync studentName in any existing bookings for this student
+      try {
+        const studentBookings = await queryCollection<Booking>(
+          'bookings',
+          'studentId',
+          '==',
+          firebaseUser.uid
+        )
+        for (const b of studentBookings) {
+          if (b.studentName !== formatted.fullName) {
+            await updateDocument('bookings', b.id, {
+              studentName: formatted.fullName,
+            })
+          }
+        }
+      } catch {
+        // Non-blocking sync
+      }
 
       if (data.newPassword) {
         await updatePassword(authUser, data.newPassword)
       }
 
       reset({
-        firstName,
-        lastName,
+        firstName: formatted.firstName,
+        lastName: formatted.lastName,
         phone: data.phone,
         currentPassword: '',
         newPassword: '',

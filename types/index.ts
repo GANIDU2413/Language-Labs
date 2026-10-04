@@ -52,6 +52,9 @@ export interface User {
   testTakenAt?: Timestamp;
   /** True once the completion certificate email has been sent */
   certificateEmailSent?: boolean;
+  /** When true, student's access to the platform is temporarily blocked */
+  disabled?: boolean;
+  disabledAt?: Timestamp;
   createdAt: Timestamp;
 }
 
@@ -76,14 +79,6 @@ export interface AboutContent {
   missionDescription: string;
   storyTitle: string;
   storyDescription: string;
-  principle1Title?: string;
-  principle1Desc?: string;
-  principle2Title?: string;
-  principle2Desc?: string;
-  principle3Title?: string;
-  principle3Desc?: string;
-  principle4Title?: string;
-  principle4Desc?: string;
 }
 
 /** Contact Us page content managed by admin (doc: admins/contact) */
@@ -366,3 +361,15 @@ export interface OtpCode {
   used: boolean;
   createdAt: Timestamp;
 }
+
+// ---------------------------------------------------------------------------
+// suggestions — anonymous visitor/student suggestions
+// ---------------------------------------------------------------------------
+
+export interface Suggestion {
+  id: string;
+  suggestion: string;
+  category?: string;
+  createdAt: Timestamp;
+}
+

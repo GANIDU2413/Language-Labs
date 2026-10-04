@@ -82,10 +82,30 @@ export default function CertificatePage() {
   async function buildPdf(): Promise<jsPDF | null> {
     const element = certRef.current
     if (!element) return null
+
+    // Ensure all images (logo, signature) inside certificate element are fully loaded
+    const images = Array.from(element.querySelectorAll('img'))
+    await Promise.all(
+      images.map(
+        (img) =>
+          new Promise<void>((resolve) => {
+            if (img.complete && img.naturalHeight !== 0) {
+              resolve()
+            } else {
+              img.onload = () => resolve()
+              img.onerror = () => resolve()
+            }
+          })
+      )
+    )
+
     const html2canvas = (await import('html2canvas')).default
     const canvas = await html2canvas(element, {
       scale: 2,
       backgroundColor: '#ffffff',
+      useCORS: true,
+      allowTaint: true,
+      logging: false,
     })
     const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' })
     const pageWidth = pdf.internal.pageSize.getWidth()
@@ -108,7 +128,7 @@ export default function CertificatePage() {
     try {
       const pdf = await buildPdf()
       if (!pdf) throw new Error('Could not generate PDF')
-      pdf.save('language-labs-certificate.pdf')
+      pdf.save('LANGUAGE-LABS-Certificate.pdf')
       toast.success('Certificate downloaded successfully! 🎓')
     } catch {
       toast.error('Could not download certificate PDF. Please try again.')
@@ -140,18 +160,18 @@ export default function CertificatePage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             to: user!.email,
-            subject: 'Your Language Labs Certificate 🎓',
+            subject: 'Your LANGUAGE LABS Certificate 🎓',
             html: `
 <div style="font-family:Arial,Helvetica,sans-serif;color:#0A1628;padding:24px;">
   <p>Hi ${user!.firstName},</p>
   <p>🎉 Congratulations on completing all 16 sessions! Your Certificate of
   Completion is attached to this email.</p>
   <p>We're so proud of the scientist you've become. Keep experimenting!</p>
-  <p>— The Language Labs team 🔬</p>
+  <p>— The LANGUAGE LABS team</p>
 </div>`,
             attachments: [
               {
-                filename: 'language-labs-certificate.pdf',
+                filename: 'LANGUAGE-LABS-Certificate.pdf',
                 content: base64,
               },
             ],
@@ -233,31 +253,43 @@ export default function CertificatePage() {
           ref={certRef}
           className="mx-auto aspect-[1.414/1] w-full border-4 border-[#0A1628] bg-white p-3 text-center sm:border-8 sm:p-10"
         >
-          <div className="flex h-full flex-col items-center justify-between border-2 border-[#1E90FF] px-3 py-3 sm:px-8 sm:py-6">
-            <div>
-              <p className="text-base font-bold text-[#0A1628] sm:text-2xl">
-                🧪 Language <span className="text-[#1E90FF]">Labs</span>
+          <div className="flex h-full flex-col items-center justify-between border-2 border-[#1E90FF] px-2.5 py-2.5 sm:px-8 sm:py-5">
+            {/* Top Brand Header */}
+            <div className="flex flex-col items-center">
+              <div className="relative mb-1 flex h-8 w-8 items-center justify-center sm:mb-2 sm:h-12 sm:w-12">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/Logo1_no_bg.png"
+                  alt="LANGUAGE LABS Logo"
+                  crossOrigin="anonymous"
+                  className="max-h-full max-w-full object-contain"
+                />
+              </div>
+              <p className="text-sm font-extrabold tracking-wider text-[#0A1628] sm:text-2xl">
+                LANGUAGE <span className="text-[#1E90FF]">LABS</span>
               </p>
-              <h2 className="mt-1 text-sm font-bold uppercase tracking-widest text-[#0A1628] sm:mt-4 sm:text-3xl">
+              <h2 className="mt-0.5 text-xs font-bold uppercase tracking-widest text-[#0A1628] sm:mt-2 sm:text-2xl">
                 Certificate of Completion
               </h2>
             </div>
 
-            <div>
-              <p className="text-xs text-[#5A6472] sm:text-sm">
+            {/* Recipient Details */}
+            <div className="my-auto py-1">
+              <p className="text-[10px] text-[#5A6472] sm:text-sm">
                 This is to certify that
               </p>
-              <p className="mt-1 text-xl font-bold text-[#1E90FF] sm:mt-2 sm:text-4xl">
+              <p className="my-0.5 text-lg font-bold text-[#1E90FF] sm:my-1.5 sm:text-3xl">
                 {user.fullName}
               </p>
-              <p className="mx-auto mt-1 max-w-md text-[10px] leading-relaxed text-[#5A6472] sm:mt-3 sm:text-sm">
-                has successfully completed the comprehensive Language Labs English Course
+              <p className="mx-auto max-w-md text-[9px] leading-relaxed text-[#5A6472] sm:text-xs">
+                has successfully completed the comprehensive LANGUAGE LABS English Course
                 comprising 16 sessions across the full curriculum
               </p>
             </div>
 
-            <div className="flex w-full items-end justify-between">
-              <div className="text-left">
+            {/* Bottom Footer: Date (Left) & Admin Signature + Mentor Name (Right) */}
+            <div className="flex w-full items-end justify-between pt-1">
+              <div className="flex flex-col items-start pb-1 text-left">
                 <p className="text-[9px] text-[#5A6472] sm:text-xs">
                   Date of completion
                 </p>
@@ -265,8 +297,19 @@ export default function CertificatePage() {
                   {formatDate(lab ? completionDate(lab) : new Date())}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="border-t border-[#0A1628] px-2 pt-1 text-[11px] font-semibold text-[#0A1628] sm:px-6 sm:text-sm">
+
+              <div className="flex flex-col items-center text-center">
+                {/* Admin Signature positioned directly above admin name */}
+                <div className="relative mb-0.5 flex h-8 w-24 items-center justify-center sm:h-12 sm:w-36">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/images/Subject.png"
+                    alt="Admin Signature"
+                    crossOrigin="anonymous"
+                    className="max-h-full max-w-full object-contain object-bottom"
+                  />
+                </div>
+                <p className="min-w-[110px] border-t border-[#0A1628] px-2 pt-1 text-[11px] font-semibold text-[#0A1628] sm:min-w-[150px] sm:px-6 sm:text-sm">
                   {mentorName}
                 </p>
                 <p className="mt-0.5 text-[9px] text-[#5A6472] sm:text-xs">

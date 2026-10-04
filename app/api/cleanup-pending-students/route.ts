@@ -9,6 +9,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '@/lib/firebase'
+import { deleteFirebaseAuthUser } from '@/lib/firebase-admin'
 import type { Booking, User } from '@/types'
 
 const RETENTION_DAYS = 7
@@ -17,13 +18,6 @@ const RETENTION_DAYS = 7
  * Hard-delete students who registered but never enrolled within 7 days
  * (business rule). Called by a cron job, or from the admin panel's
  * "Run Cleanup" button.
- *
- * TODO(firebase-admin): this route uses the client SDK, which (a) cannot
- * delete Firebase Auth accounts — only their Firestore data — and (b) will
- * be blocked by the security rules once deployed. Migrating this route to
- * the Admin SDK with a service-account key fixes both. Until then, the
- * admin panel button performs the same cleanup client-side as the
- * authenticated admin.
  */
 export async function POST() {
   try {
@@ -42,6 +36,7 @@ export async function POST() {
     let deletedBookings = 0
 
     for (const user of stale) {
+      await deleteFirebaseAuthUser(user.id).catch(() => {})
       const bookingsSnap = await getDocs(
         query(collection(db, 'bookings'), where('studentId', '==', user.id))
       )
@@ -57,7 +52,6 @@ export async function POST() {
       success: true,
       deletedUsers,
       deletedBookings,
-      note: 'Firebase Auth accounts require the Admin SDK and were not deleted.',
     })
   } catch (err) {
     console.error('cleanup-pending-students failed:', err)

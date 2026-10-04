@@ -107,3 +107,55 @@ export function getDaysRemaining(startDate: Date): number {
   startOfTarget.setHours(0, 0, 0, 0)
   return Math.round((startOfTarget.getTime() - startOfToday.getTime()) / msPerDay)
 }
+
+/**
+ * Capitalizes a name: trims whitespace, capitalizes the first letter of each part,
+ * and sets the remaining characters to lowercase (supporting spaces, hyphens, and apostrophes).
+ *
+ * Examples:
+ *   formatName("john") => "John"
+ *   formatName("JOHN") => "John"
+ *   formatName("john doe") => "John Doe"
+ *   formatName("JOHN DOE") => "John Doe"
+ *   formatName("mary-jane") => "Mary-Jane"
+ *   formatName("o'connor") => "O'Connor"
+ */
+export function formatName(name: string): string {
+  if (!name) return ''
+  return name
+    .trim()
+    .split(/\s+/)
+    .map((word) =>
+      word
+        .split('-')
+        .map((part) =>
+          part
+            .split("'")
+            .map((sub) =>
+              sub.length > 0
+                ? sub.charAt(0).toUpperCase() + sub.slice(1).toLowerCase()
+                : ''
+            )
+            .join("'")
+        )
+        .join('-')
+    )
+    .join(' ')
+}
+
+/**
+ * Format first and last name and generate a trimmed fullName.
+ */
+export function formatFullName(
+  firstName: string,
+  lastName: string
+): { firstName: string; lastName: string; fullName: string } {
+  const formattedFirst = formatName(firstName)
+  const formattedLast = formatName(lastName)
+  return {
+    firstName: formattedFirst,
+    lastName: formattedLast,
+    fullName: `${formattedFirst} ${formattedLast}`.trim(),
+  }
+}
+

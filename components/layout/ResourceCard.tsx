@@ -18,6 +18,10 @@ interface ResourceCardProps {
   thumbnailImage?: string
   /** Dynamic card background color from CourseOverview courseCards */
   cardColor?: CardColor
+  /** True when the material is locked for future weeks */
+  isLocked?: boolean
+  /** Week number when it unlocks */
+  unlockWeek?: number
 }
 
 const typeIcon: Record<ResourceType, string> = {
@@ -43,6 +47,8 @@ export default function ResourceCard({
   content,
   thumbnailImage,
   cardColor = defaultColor,
+  isLocked = false,
+  unlockWeek,
 }: ResourceCardProps) {
   const [modalOpen, setModalOpen] = useState(false)
 
@@ -78,9 +84,15 @@ export default function ResourceCard({
   return (
     <>
       <div
-        className="group relative flex h-full w-[85%] min-h-[170px] sm:min-h-[220px] md:min-h-[255px] mx-auto flex-col justify-between overflow-hidden rounded-[14px] sm:rounded-[16px] border-2 border-[rgba(255,255,255,0.45)] px-2.5 py-2.5 sm:px-3.5 sm:py-4 md:px-5 md:py-5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.18)]"
+        className={`group relative flex h-full w-[85%] min-h-[170px] sm:min-h-[220px] md:min-h-[255px] mx-auto flex-col justify-between overflow-hidden rounded-[14px] sm:rounded-[16px] border-2 border-[rgba(255,255,255,0.45)] px-2.5 py-2.5 sm:px-3.5 sm:py-4 md:px-5 md:py-5 shadow-[0_8px_24px_rgba(0,0,0,0.12)] transition-all duration-300 ${
+          isLocked
+            ? 'opacity-80 cursor-not-allowed'
+            : 'hover:-translate-y-1 hover:shadow-[0_12px_32px_rgba(0,0,0,0.18)]'
+        }`}
         style={{
-          background: `rgba(${cardColor.rgb},0.85)`,
+          background: isLocked
+            ? 'rgba(71, 85, 105, 0.85)'
+            : `rgba(${cardColor.rgb},0.85)`,
           backdropFilter: 'blur(12px)',
           WebkitBackdropFilter: 'blur(12px)',
         }}
@@ -90,9 +102,16 @@ export default function ResourceCard({
           {/* Left Content Column */}
           <div className="flex flex-1 min-w-0 flex-col">
             {/* Top Icon Badge */}
-            <span className="flex h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/30 bg-white/20 text-xs sm:text-sm md:text-base text-white shadow-xs backdrop-blur-xs">
-              {typeIcon[type]}
-            </span>
+            <div className="flex items-center gap-1.5">
+              <span className="flex h-7 w-7 sm:h-8 sm:w-8 md:h-9 md:w-9 items-center justify-center rounded-full border border-white/30 bg-white/20 text-xs sm:text-sm md:text-base text-white shadow-xs backdrop-blur-xs">
+                {isLocked ? '🔒' : typeIcon[type]}
+              </span>
+              {isLocked && unlockWeek && (
+                <span className="rounded-full bg-black/25 px-2 py-0.5 text-[9px] sm:text-[10px] font-bold text-white/90 backdrop-blur-xs border border-white/20">
+                  Week {unlockWeek}
+                </span>
+              )}
+            </div>
 
             {/* Title / Topic */}
             <h3 className="mt-1 sm:mt-1.5 md:mt-2 font-bold text-white text-[11px] sm:text-sm md:text-base leading-tight sm:leading-snug drop-shadow-xs line-clamp-2">
@@ -115,7 +134,9 @@ export default function ResourceCard({
                 alt=""
                 fill
                 sizes="(max-width: 640px) 48px, (max-width: 1024px) 64px, 80px"
-                className="object-contain object-center drop-shadow-md select-none pointer-events-none"
+                className={`object-contain object-center drop-shadow-md select-none pointer-events-none ${
+                  isLocked ? 'opacity-70 grayscale-[30%]' : ''
+                }`}
               />
             </div>
           )}
@@ -123,7 +144,18 @@ export default function ResourceCard({
 
         {/* Bottom Area: Full-width Action Button styled like CourseOverview */}
         <div className="mt-2 sm:mt-3 w-full">
-          {type === 'text' ? (
+          {isLocked ? (
+            <div
+              className="w-full flex items-center justify-center rounded-full border border-white/20 py-1.5 sm:py-2 px-2 sm:px-3 text-[10px] sm:text-xs md:text-sm font-semibold text-white/80 select-none cursor-not-allowed"
+              style={{
+                background: 'rgba(0,0,0,0.25)',
+                backdropFilter: 'blur(8px)',
+                WebkitBackdropFilter: 'blur(8px)',
+              }}
+            >
+              🔒 Unlocks Week {unlockWeek ?? 1}
+            </div>
+          ) : type === 'text' ? (
             <button
               type="button"
               onClick={() => setModalOpen(true)}

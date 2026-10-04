@@ -7,7 +7,7 @@ import {
   sanitizeEmail,
   sendOTPEmail,
 } from '@/lib/resend'
-import { generateOTP } from '@/lib/utils'
+import { formatName, generateOTP } from '@/lib/utils'
 
 const OTP_EXPIRY_MINUTES = 10
 
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
 
     const firstName =
       typeof body.firstName === 'string' && body.firstName.trim().length > 0
-        ? body.firstName.trim()
+        ? formatName(body.firstName)
         : 'there'
 
     const code = generateOTP()
