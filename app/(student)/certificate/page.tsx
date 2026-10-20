@@ -303,7 +303,7 @@ export default function CertificatePage() {
                 <div className="relative mb-0.5 flex h-8 w-24 items-center justify-center sm:h-12 sm:w-36">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/images/Subject.png"
+                    src="/images/Signature1.png"
                     alt="Admin Signature"
                     crossOrigin="anonymous"
                     className="max-h-full max-w-full object-contain object-bottom"

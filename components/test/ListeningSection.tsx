@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Button from '@/components/ui/Button'
 import Card from '@/components/ui/Card'
@@ -22,99 +22,82 @@ interface QuestionCardProps {
 
 function QuestionCard({ question, selected, onSelect }: QuestionCardProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const [audioReady, setAudioReady] = useState(false)
+  const progressTrackRef = useRef<HTMLDivElement | null>(null)
+
   const [playing, setPlaying] = useState(false)
-  const [progress, setProgress] = useState(0)
+  const [isBuffering, setIsBuffering] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
   const [audioError, setAudioError] = useState(false)
+  const [audioAttempt, setAudioAttempt] = useState(0)
+  const [useNativeControls, setUseNativeControls] = useState(false)
 
   const [imageLoaded, setImageLoaded] = useState(false)
   const [imageError, setImageError] = useState(false)
-  const [audioAttempt, setAudioAttempt] = useState(0)
   const [imageAttempt, setImageAttempt] = useState(0)
 
   const audioSrc = getCachedMediaUrl(question.audioUrl)
   const imageSrc = getCachedMediaUrl(question.imageUrl)
-  const isBlobImage = imageSrc.startsWith('blob:')
 
-  // Audio setup and event management
-  useEffect(() => {
-    let unmounted = false
-    const audio = new Audio(audioSrc)
-    audioRef.current = audio
 
-    const onReady = () => {
-      if (!unmounted) {
-        setAudioReady(true)
-        setAudioError(false)
-      }
-    }
-
-    const onTime = () => {
-      if (!unmounted && audio.duration) {
-        setProgress(audio.currentTime / audio.duration)
-      }
-    }
-
-    const onEnded = () => {
-      if (!unmounted) {
-        setPlaying(false)
-        audio.currentTime = 0
-      }
-    }
-
-    const onError = () => {
-      if (!unmounted) {
-        setAudioError(true)
-        setAudioReady(false)
-        setPlaying(false)
-      }
-    }
-
-    audio.addEventListener('canplaythrough', onReady)
-    audio.addEventListener('canplay', onReady)
-    audio.addEventListener('timeupdate', onTime)
-    audio.addEventListener('ended', onEnded)
-    audio.addEventListener('error', onError)
-
-    // Check if media is already sufficiently buffered from cache
-    if (audio.readyState >= 3) {
-      onReady()
-    }
-
-    return () => {
-      unmounted = true
-      audio.pause()
-      audio.removeEventListener('canplaythrough', onReady)
-      audio.removeEventListener('canplay', onReady)
-      audio.removeEventListener('timeupdate', onTime)
-      audio.removeEventListener('ended', onEnded)
-      audio.removeEventListener('error', onError)
-      audioRef.current = null
-    }
-  }, [audioSrc, audioAttempt])
-
-  function togglePlay() {
+  async function togglePlay() {
     const audio = audioRef.current
     if (!audio) return
+
     if (playing) {
       audio.pause()
       setPlaying(false)
     } else {
-      audio
-        .play()
-        .then(() => setPlaying(true))
-        .catch(() => {
-          setPlaying(false)
-          setAudioError(true)
-        })
+      try {
+        setIsBuffering(true)
+        setAudioError(false)
+        await audio.play()
+        setPlaying(true)
+        setIsBuffering(false)
+      } catch (err: unknown) {
+        setIsBuffering(false)
+        if (err instanceof DOMException && err.name === 'AbortError') {
+          return
+        }
+        setPlaying(false)
+        setAudioError(true)
+      }
     }
+  }
+
+  function handleReplay() {
+    const audio = audioRef.current
+    if (!audio) return
+    audio.currentTime = 0
+    setCurrentTime(0)
+    audio
+      .play()
+      .then(() => setPlaying(true))
+      .catch(() => {})
+  }
+
+  function handleSeek(
+    e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>
+  ) {
+    const progressBar = progressTrackRef.current
+    const audio = audioRef.current
+    if (!progressBar || !audio || !duration) return
+
+    const rect = progressBar.getBoundingClientRect()
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX
+    const clickX = Math.max(0, Math.min(clientX - rect.left, rect.width))
+    const newProgress = rect.width > 0 ? clickX / rect.width : 0
+    const newTime = newProgress * duration
+
+    audio.currentTime = newTime
+    setCurrentTime(newTime)
   }
 
   function retryAudio() {
     setAudioError(false)
-    setAudioReady(false)
+    setIsBuffering(false)
     setPlaying(false)
-    setProgress(0)
+    setCurrentTime(0)
     setAudioAttempt((prev) => prev + 1)
   }
 
@@ -124,8 +107,18 @@ function QuestionCard({ question, selected, onSelect }: QuestionCardProps) {
     setImageAttempt((prev) => prev + 1)
   }
 
+  function formatTime(seconds: number): string {
+    if (isNaN(seconds) || !isFinite(seconds) || seconds < 0) return '0:00'
+    const mins = Math.floor(seconds / 60)
+    const secs = Math.floor(seconds % 60)
+    return `${mins}:${secs < 10 ? '0' : ''}${secs}`
+  }
+
+  const progress =
+    duration > 0 ? Math.min(1, Math.max(0, currentTime / duration)) : 0
+
   return (
-    <Card className="mt-6">
+    <Card className="mt-6 p-4 sm:p-6">
       {/* Image display */}
       <div className="relative flex w-full items-center justify-center overflow-hidden rounded-lab border border-blue-light/60 bg-blue-light/30 p-2 sm:p-3">
         {!imageLoaded && !imageError && (
@@ -166,43 +159,220 @@ function QuestionCard({ question, selected, onSelect }: QuestionCardProps) {
 
       {/* Audio player */}
       <div className="mt-4 flex flex-col gap-2">
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={togglePlay}
-            disabled={!audioReady || audioError}
-            aria-label={playing ? 'Pause audio' : 'Play audio'}
-            className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-electric-blue text-lg text-lab-white transition-colors hover:bg-electric-blue/90 disabled:opacity-50"
-          >
-            {audioError ? (
-              '⚠️'
-            ) : !audioReady ? (
-              <LoadingSpinner size="sm" />
-            ) : playing ? (
-              '❚❚'
-            ) : (
-              <span className="pl-0.5">▶</span>
-            )}
-          </button>
+        {/* Real DOM HTMLAudioElement for reliable mobile browser integration */}
+        <audio
+          ref={audioRef}
+          key={`${audioSrc}-${audioAttempt}`}
+          src={audioSrc}
+          preload="auto"
+          playsInline
+          onLoadedMetadata={(e) => {
+            const el = e.currentTarget
+            if (el.duration && !isNaN(el.duration)) {
+              setDuration(el.duration)
+            }
+          }}
+          onCanPlay={() => {
+            setIsBuffering(false)
+            setAudioError(false)
+          }}
+          onCanPlayThrough={() => {
+            setIsBuffering(false)
+            setAudioError(false)
+          }}
+          onTimeUpdate={(e) => {
+            const el = e.currentTarget
+            setCurrentTime(el.currentTime)
+            if (el.duration && !isNaN(el.duration)) {
+              setDuration(el.duration)
+            }
+          }}
+          onWaiting={() => {
+            setIsBuffering(true)
+          }}
+          onPlaying={() => {
+            setIsBuffering(false)
+            setPlaying(true)
+            setAudioError(false)
+          }}
+          onPause={() => {
+            setPlaying(false)
+          }}
+          onEnded={() => {
+            setPlaying(false)
+            setIsBuffering(false)
+            setCurrentTime(0)
+            if (audioRef.current) {
+              audioRef.current.currentTime = 0
+            }
+          }}
+          onError={(e) => {
+            const target = e.currentTarget
+            if (target.error && target.error.code !== 0) {
+              setAudioError(true)
+              setIsBuffering(false)
+              setPlaying(false)
+            }
+          }}
+          className={useNativeControls ? 'w-full h-11 mt-1' : 'hidden'}
+          controls={useNativeControls}
+        />
 
-          <div className="h-2 flex-1 overflow-hidden rounded-full bg-blue-light">
-            <div
-              className="h-full rounded-full bg-electric-blue transition-[width] duration-200"
-              style={{ width: `${progress * 100}%` }}
-            />
-          </div>
-        </div>
-
-        {audioError ? (
-          <div className="flex items-center justify-between rounded-lab bg-red-50 px-3 py-1.5 text-xs text-seat-reserved">
-            <span>Audio playback encountered an issue.</span>
+        {!useNativeControls && (
+          <div className="flex items-center gap-3 sm:gap-4">
+            {/* Play/Pause Button - guaranteed min 48px touch target for mobile */}
             <button
               type="button"
-              onClick={retryAudio}
-              className="font-semibold underline hover:no-underline"
+              onClick={togglePlay}
+              aria-label={playing ? 'Pause audio' : 'Play audio'}
+              className="relative flex h-12 w-12 sm:h-14 sm:w-14 min-w-[48px] min-h-[48px] shrink-0 items-center justify-center rounded-full bg-electric-blue text-white shadow-md transition-all hover:bg-electric-blue/90 hover:shadow-lg active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-electric-blue focus-visible:ring-offset-2 touch-manipulation cursor-pointer"
             >
-              🔄 Retry Audio
+              {isBuffering ? (
+                <svg
+                  className="h-6 w-6 animate-spin text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  aria-hidden="true"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                  />
+                  <path
+                    className="opacity-90"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  />
+                </svg>
+              ) : playing ? (
+                <svg
+                  className="h-6 w-6 text-white"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+                </svg>
+              ) : (
+                <svg
+                  className="h-6 w-6 text-white translate-x-0.5"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                  aria-hidden="true"
+                >
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
             </button>
+
+            {/* Scrubber track and time readout */}
+            <div className="flex flex-1 flex-col gap-1.5 min-w-0">
+              <div
+                ref={progressTrackRef}
+                onClick={handleSeek}
+                onTouchStart={handleSeek}
+                role="slider"
+                tabIndex={0}
+                aria-label="Audio progress"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={Math.round(progress * 100)}
+                className="group relative flex h-6 w-full cursor-pointer items-center touch-manipulation select-none"
+              >
+                <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-blue-light transition-all group-hover:h-3">
+                  <div
+                    className="h-full rounded-full bg-electric-blue transition-[width] duration-150"
+                    style={{ width: `${progress * 100}%` }}
+                  />
+                </div>
+                <div
+                  className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 h-3.5 w-3.5 rounded-full border-2 border-white bg-electric-blue shadow-sm transition-opacity opacity-0 group-hover:opacity-100 sm:opacity-100"
+                  style={{ left: `${progress * 100}%` }}
+                />
+              </div>
+
+              <div className="flex items-center justify-between text-xs font-medium text-gray-500">
+                <span className="tabular-nums">
+                  {formatTime(currentTime)} / {duration > 0 ? formatTime(duration) : '--:--'}
+                </span>
+                <div className="flex items-center gap-3">
+                  {currentTime > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleReplay}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-electric-blue hover:underline cursor-pointer touch-manipulation"
+                      title="Replay from beginning"
+                    >
+                      <svg
+                        className="w-3.5 h-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                        <path d="M3 3v5h5" />
+                      </svg>
+                      Replay
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setUseNativeControls(true)}
+                    className="text-[11px] text-gray-400 hover:text-deep-blue transition-colors underline cursor-pointer touch-manipulation"
+                    title="Switch to native browser audio controls"
+                  >
+                    Native player
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {useNativeControls && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setUseNativeControls(false)}
+              className="text-[11px] font-medium text-electric-blue hover:underline cursor-pointer touch-manipulation"
+            >
+              Switch to custom player
+            </button>
+          </div>
+        )}
+
+        {audioError ? (
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lab bg-red-50 p-3 text-xs text-seat-reserved border border-red-100">
+            <div className="flex items-center gap-2">
+              <span className="text-base">⚠️</span>
+              <span>Audio playback encountered an issue on this device.</span>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={retryAudio}
+                className="font-semibold underline hover:no-underline cursor-pointer"
+              >
+                🔄 Retry Audio
+              </button>
+              {!useNativeControls && (
+                <button
+                  type="button"
+                  onClick={() => setUseNativeControls(true)}
+                  className="rounded bg-electric-blue/10 px-2 py-1 font-semibold text-electric-blue hover:bg-electric-blue/20 cursor-pointer"
+                >
+                  Try Native Player
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <p className="text-xs text-gray-400">

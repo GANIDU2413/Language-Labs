@@ -204,7 +204,7 @@ export default function SpeakingSection({
             <p className="font-semibold text-deep-blue">
               🎉 Great job! Listen to yourself:
             </p>
-            <audio controls src={audioUrl} className="mt-4 w-full max-w-sm" />
+            <audio controls playsInline src={audioUrl} className="mt-4 w-full max-w-sm" />
             <p className="mt-2 text-sm text-gray-400">
               Recording length: {formatTime(seconds)}
             </p>

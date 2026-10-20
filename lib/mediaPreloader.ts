@@ -243,6 +243,7 @@ function verifyAudioReady(
     const cleanup = () => {
       audio.removeEventListener('canplaythrough', onReady)
       audio.removeEventListener('canplay', onReady)
+      audio.removeEventListener('loadeddata', onReady)
       audio.removeEventListener('error', onError)
     }
 
@@ -268,9 +269,15 @@ function verifyAudioReady(
 
     audio.addEventListener('canplaythrough', onReady, { once: true })
     audio.addEventListener('canplay', onReady, { once: true })
+    audio.addEventListener('loadeddata', onReady, { once: true })
     audio.addEventListener('error', onError, { once: true })
 
     audio.src = src
     audio.load()
+
+    // Immediate check if data is already available in memory (e.g. from blob)
+    if (audio.readyState >= 2) {
+      onReady()
+    }
   })
 }

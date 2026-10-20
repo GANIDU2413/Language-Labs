@@ -484,7 +484,7 @@ export default function TestMaterialsPage() {
                           />
                         )}
                         {q.audioUrl && (
-                          <audio controls src={q.audioUrl} className="h-8 max-w-44" />
+                          <audio controls playsInline src={q.audioUrl} className="h-8 max-w-44" />
                         )}
                       </span>
                     }
