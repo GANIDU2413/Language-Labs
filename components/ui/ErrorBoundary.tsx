@@ -39,12 +39,27 @@ export default class ErrorBoundary extends Component<
               An unexpected error occurred. Don&apos;t worry — your data is
               safe. Try reloading the page.
             </p>
-            <button
-              onClick={() => window.location.reload()}
-              className="mt-6 min-h-11 rounded-lab bg-electric-blue px-6 py-2.5 font-semibold text-lab-white transition-colors hover:bg-electric-blue/90"
-            >
-              Reload Page
-            </button>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  this.setState({ hasError: false })
+                  window.location.reload()
+                }}
+                className="min-h-11 rounded-lab bg-electric-blue px-6 py-2.5 font-semibold text-lab-white transition-colors hover:bg-electric-blue/90"
+              >
+                Reload Page
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  window.location.href = '/'
+                }}
+                className="flex min-h-11 items-center justify-center rounded-lab border border-electric-blue px-6 py-2.5 font-semibold text-electric-blue transition-colors hover:bg-blue-light"
+              >
+                Return Home
+              </button>
+            </div>
           </div>
         </main>
       )

@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Timestamp } from 'firebase/firestore'
-import { addDocument, getCollection } from '@/lib/firestore'
+import { addDocument, getCollection, updateDocument } from '@/lib/firestore'
 import { useAuth } from '@/hooks/useAuth'
 import { clearMediaCache, useMediaPreloader } from '@/hooks/useMediaPreloader'
 import TestRules from '@/components/test/TestRules'
@@ -132,20 +132,64 @@ export default function LevelTestPage() {
     if (!questions || !firebaseUser) return
 
     try {
+      const readingScore = scoreReading(questions.reading, answers.reading)
+      const vocabularyScore = scoreVocabulary(
+        questions.vocabulary,
+        answers.vocabulary
+      )
+      const listeningScore = scoreListening(
+        questions.listening,
+        answers.listening
+      )
+
       const result: Omit<TestResult, 'id'> = {
         studentId: firebaseUser.uid,
-        readingScore: scoreReading(questions.reading, answers.reading),
-        vocabularyScore: scoreVocabulary(
-          questions.vocabulary,
-          answers.vocabulary
-        ),
-        listeningScore: scoreListening(questions.listening, answers.listening),
+        readingScore,
+        vocabularyScore,
+        listeningScore,
         speakingScore: null,
         speakingFileUrl,
         reviewedByAdmin: false,
         createdAt: Timestamp.now(),
       }
-      await addDocument<TestResult>('testResults', result)
+
+      const resultDocId = await addDocument<TestResult>('testResults', result)
+
+      // Cache locally for instant availability on results page
+      if (typeof window !== 'undefined') {
+        try {
+          sessionStorage.setItem(
+            'll_latest_result',
+            JSON.stringify({
+              id: resultDocId,
+              ...result,
+              createdAt: new Date().toISOString(),
+            })
+          )
+        } catch {
+          // Ignore cache error
+        }
+      }
+
+      // Update student's testTakenAt and level non-blockingly
+      const combinedScore = Math.round(
+        (readingScore + vocabularyScore + listeningScore) / 3
+      )
+      const calculatedLevel =
+        combinedScore <= 40
+          ? 'Beginner'
+          : combinedScore <= 60
+            ? 'Elementary'
+            : combinedScore <= 80
+              ? 'Intermediate'
+              : 'Upper-Intermediate'
+
+      updateDocument('users', firebaseUser.uid, {
+        testTakenAt: Timestamp.now(),
+        level: calculatedLevel,
+      }).catch((err) => {
+        console.warn('Could not update user level metadata:', err)
+      })
 
       // Notify the admin — non-blocking, results are already saved
       try {
@@ -154,7 +198,7 @@ export default function LevelTestPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             type: 'speaking_review',
-            studentName: user?.fullName ?? firebaseUser.email,
+            studentName: user?.fullName || firebaseUser.email || 'Student',
             studentEmail: firebaseUser.email,
             message:
               speakingFileUrl === null
@@ -167,8 +211,9 @@ export default function LevelTestPage() {
       }
 
       clearMediaCache()
-      router.push('/test/results')
-    } catch {
+      router.push(`/test/results?id=${resultDocId}`)
+    } catch (err) {
+      console.error('Test submission error:', err)
       setSubmitError(true)
     }
   }
